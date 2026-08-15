@@ -1,0 +1,249 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  RUST_VERSION: "1.97.1"
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Validate release identity
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-list -n 1 "$GITHUB_REF_NAME")" = "$GITHUB_SHA"
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          python3 - <<'PY'
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+
+          tag = os.environ["GITHUB_REF_NAME"]
+          if not re.fullmatch(r"v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", tag):
+              raise SystemExit(f"invalid release tag: {tag}")
+
+          version = tag[1:]
+          manifest = tomllib.loads(Path("Cargo.toml").read_text(encoding="utf-8"))
+          lockfile = tomllib.loads(Path("Cargo.lock").read_text(encoding="utf-8"))
+          if manifest["package"]["version"] != version:
+              raise SystemExit("Cargo.toml version does not match the tag")
+          packages = [
+              package
+              for package in lockfile["package"]
+              if package["name"] == manifest["package"]["name"]
+          ]
+          if len(packages) != 1 or packages[0]["version"] != version:
+              raise SystemExit("Cargo.lock package version does not match the tag")
+          if not any(
+              line.startswith(f"## [{version}]")
+              for line in Path("CHANGELOG.md").read_text(encoding="utf-8").splitlines()
+          ):
+              raise SystemExit("CHANGELOG.md has no matching release section")
+          PY
+
+      - name: Install tested Rust
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --no-self-update
+          rustup component add --toolchain "$RUST_VERSION" rustfmt clippy
+
+      - name: Validate release source
+        run: |
+          cargo +"$RUST_VERSION" fmt --all --check
+          cargo +"$RUST_VERSION" clippy --locked --all-targets --all-features -- -D warnings
+          cargo +"$RUST_VERSION" test --locked --all-targets --all-features
+          cargo +"$RUST_VERSION" build --locked
+          python3 scripts/validate_agents.py
+          python3 scripts/validate_integrations.py
+          python3 scripts/validate_outputs.py target/debug/apollyon
+          python3 scripts/validate_release.py
+          cargo +"$RUST_VERSION" package --locked
+
+      - name: Validate minimum Rust version
+        run: |
+          rustup toolchain install 1.74.0 --profile minimal --no-self-update
+          cargo +1.74.0 check --locked
+
+  build:
+    needs: validate
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            family: unix
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            family: unix
+          - runner: macos-15
+            target: aarch64-apple-darwin
+            family: unix
+          - runner: windows-2022
+            target: x86_64-pc-windows-msvc
+            family: windows
+
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Check out exact release revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Install Rust target
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal --no-self-update
+          rustup target add --toolchain 1.97.1 ${{ matrix.target }}
+
+      - name: Install musl linker
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes musl-tools
+
+      - name: Build and test
+        run: |
+          cargo +1.97.1 test --release --locked --target ${{ matrix.target }}
+          cargo +1.97.1 build --release --locked --target ${{ matrix.target }}
+
+      - name: Smoke-test Unix binary
+        if: matrix.family == 'unix'
+        shell: bash
+        run: |
+          binary="target/${{ matrix.target }}/release/apollyon"
+          test "$("$binary" --version)" = "apollyon ${GITHUB_REF_NAME#v}"
+          "$binary" scan tests/fixtures/manual-project \
+            --format json --fail-on never > "$RUNNER_TEMP/apollyon.json"
+          python3 -m json.tool "$RUNNER_TEMP/apollyon.json" >/dev/null
+
+      - name: Smoke-test Windows binary
+        if: matrix.family == 'windows'
+        shell: pwsh
+        run: |
+          $binary = "target\${{ matrix.target }}\release\apollyon.exe"
+          $version = & $binary --version
+          $expected = "apollyon $($env:GITHUB_REF_NAME.Substring(1))"
+          if ($LASTEXITCODE -ne 0 -or $version -ne $expected) {
+            throw "unexpected Apollyon version: $version"
+          }
+          $json = (& $binary scan tests/fixtures/manual-project --format json --fail-on never | Out-String)
+          if ($LASTEXITCODE -ne 0) {
+            throw "scan smoke test failed"
+          }
+          $json | ConvertFrom-Json | Out-Null
+
+      - name: Package Unix archive
+        if: matrix.family == 'unix'
+        shell: bash
+        run: |
+          package="apollyon-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir -p "dist/$package"
+          install -m 0755 "target/${{ matrix.target }}/release/apollyon" "dist/$package/"
+          install -m 0644 README.md LICENSE "dist/$package/"
+          COPYFILE_DISABLE=1 tar -C dist -czf "dist/$package.tar.gz" "$package"
+          rm -rf "dist/$package"
+
+      - name: Package Windows archive
+        if: matrix.family == 'windows'
+        shell: pwsh
+        run: |
+          $package = "apollyon-$($env:GITHUB_REF_NAME)-${{ matrix.target }}"
+          $directory = Join-Path dist $package
+          New-Item -ItemType Directory -Force $directory | Out-Null
+          Copy-Item "target\${{ matrix.target }}\release\apollyon.exe" $directory
+          Copy-Item README.md, LICENSE $directory
+          Compress-Archive -Path $directory -DestinationPath "dist\$package.zip"
+          Remove-Item -Recurse -Force $directory
+
+      - name: Upload packaged target
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      attestations: write
+      artifact-metadata: write
+      id-token: write
+    steps:
+      - name: Check out release metadata
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Download target archives
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+
+      - name: Validate assets and create checksums
+        shell: bash
+        run: |
+          asset_count="$(
+            find dist -maxdepth 1 -type f \
+              \( -name '*.tar.gz' -o -name '*.zip' \) | wc -l
+          )"
+          test "$asset_count" -eq 4
+          cd dist
+          sha256sum apollyon-* > SHA256SUMS
+          sha256sum --check SHA256SUMS
+
+      - name: Generate release notes
+        shell: bash
+        run: |
+          python3 scripts/generate_release_notes.py \
+            "$GITHUB_REF_NAME" CHANGELOG.md release-notes.md
+
+      - name: Attest release assets
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/*
+
+      - name: Publish GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/*.tar.gz \
+            dist/*.zip \
+            dist/SHA256SUMS \
+            --verify-tag \
+            --fail-on-no-commits \
+            --title "Apollyon $GITHUB_REF_NAME — public pre-alpha" \
+            --notes-file release-notes.md \
+            --prerelease \
+            --latest=false

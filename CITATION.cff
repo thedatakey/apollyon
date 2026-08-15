@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use Apollyon, please cite the software using this metadata."
+title: "Apollyon Code Security"
+type: software
+authors:
+  - family-names: Koentjes
+    given-names: Tom
+repository-code: "https://github.com/thedatakey/apollyon"
+url: "https://github.com/thedatakey/apollyon"
+license: MIT
+version: 0.2.0
+date-released: 2026-08-15
+keywords:
+  - source security
+  - static analysis
+  - SARIF
+  - coding agents

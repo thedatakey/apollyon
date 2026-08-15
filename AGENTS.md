@@ -54,6 +54,7 @@ secrets, full proprietary source, or uncontrolled raw snippets in case files.
 - Lint: `cargo clippy --locked --all-targets --all-features -- -D warnings`
 - Test: `cargo test --locked --all-targets --all-features`
 - Validate integrations: `python3 scripts/validate_agents.py && python3 scripts/validate_integrations.py`
+- Validate public release metadata: `python3 scripts/validate_release.py`
 - Scan a project: use a trusted installed `apollyon scan <path> --format json`;
   inside this checkout only, fall back to
   `cargo run --locked -- scan <path> --format json`.

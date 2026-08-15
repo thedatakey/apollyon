@@ -8,6 +8,7 @@ description = "A bounded, evidence-first source-security assessment runner."
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/thedatakey/apollyon"
+publish = false
 keywords = ["security", "static-analysis", "rust", "cybersecurity"]
 categories = ["command-line-utilities", "development-tools"]
 

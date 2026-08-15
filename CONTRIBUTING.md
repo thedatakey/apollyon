@@ -21,6 +21,7 @@ cargo build --locked
 python3 scripts/validate_agents.py
 python3 scripts/validate_integrations.py
 python3 scripts/validate_outputs.py target/debug/apollyon
+python3 scripts/validate_release.py
 ```
 
 New rules need positive fixtures, safe negative controls, language scoping,
@@ -33,5 +34,7 @@ inconclusive outcomes.
 Use clear imperative commits such as `fix: skip symlink traversal`. Describe
 the evidence, behavior change, tests, and limitations in the pull request.
 Never commit credentials, private reports, or proprietary source snippets.
+Maintainers must follow [`docs/RELEASING.md`](docs/RELEASING.md) for immutable
+version tags, archive validation, and public-release verification.
 
 By participating, you agree to [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).

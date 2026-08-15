@@ -2,16 +2,15 @@
 
 ## Supported versions
 
-Apollyon is pre-alpha. Only the latest commit on the default branch receives
-security fixes; no stable release is currently supported.
+Apollyon is pre-alpha. The latest tagged v0.2.x prerelease and the default
+branch receive security fixes. Older prereleases are unsupported after a newer
+version is published; release notes and security advisories document upgrades.
 
 ## Reporting a vulnerability
 
 Please do not disclose a suspected vulnerability in a public issue. Use the
-repository’s GitHub **Security → Report a vulnerability** flow after private
-vulnerability reporting is enabled. If that option is unavailable, open a
-public issue containing no sensitive details and ask the maintainer to provide
-a private reporting channel.
+repository's GitHub **Security → Report a vulnerability** flow or go directly
+to <https://github.com/thedatakey/apollyon/security/advisories/new>.
 
 Include the affected revision, impact, smallest safe reproduction, and any
 known mitigations. Do not include credentials, third-party private data, or a

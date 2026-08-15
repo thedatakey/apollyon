@@ -20,11 +20,20 @@ versioning after its first tagged release.
 - Machine-readable excluded-file/directory coverage accounting and stable
   incomplete-scan semantics for empty or unsupported targets.
 - Mixed handwritten-project fixtures and machine-output contract validation.
+- Public GitHub launch materials, installation and checksum-verification guide,
+  social preview artwork, citation metadata, and security-report routing.
+- Tag-gated release automation for Linux x86-64, macOS Apple Silicon, macOS
+  Intel, and Windows x86-64 archives with SHA-256 checksums and GitHub build
+  attestations.
 
 ### Changed
 
 - Made coding-agent orchestration optional and platform-neutral.
 - Expanded CI validation for portable integrations and output contracts.
+- Reworked the README around the current CLI, honest pre-alpha positioning,
+  copy-paste installation, real output, narrow rule coverage, and download UX.
+- Disabled accidental crates.io publication until a deliberate package release
+  process exists.
 
 ## [0.1.0] - 2026-08-15
 
