@@ -3,7 +3,7 @@
   "name": "apollyon",
   "displayName": "Apollyon",
   "version": "0.2.0",
-  "description": "Evidence-first source-security assessment workflow",
+  "description": "Evidence-first source security scan workflow for human-written and AI-generated code",
   "author": {
     "name": "Tom Koentjes"
   },
