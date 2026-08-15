@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "apollyon",
+  "displayName": "Apollyon",
+  "version": "0.2.0",
+  "description": "Evidence-first source-security assessment workflow",
+  "author": {
+    "name": "Tom Koentjes"
+  },
+  "license": "MIT",
+  "skills": "./.agents/skills/"
+}

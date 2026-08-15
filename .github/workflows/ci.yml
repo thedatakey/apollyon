@@ -29,10 +29,16 @@ jobs:
         run: cargo test --locked --all-targets --all-features
       - name: Smoke test CLI help
         run: cargo run --locked -- --help
+      - name: Build debug binary for contract tests
+        run: cargo build --locked
       - name: Build release binary
         run: cargo build --release --locked
       - name: Validate project agent files
         run: python3 scripts/validate_agents.py
+      - name: Validate portable agent integrations
+        run: python3 scripts/validate_integrations.py
+      - name: Validate machine-output contracts
+        run: python3 scripts/validate_outputs.py target/debug/apollyon
 
   msrv:
     runs-on: ubuntu-24.04
@@ -46,3 +52,21 @@ jobs:
         run: rustup toolchain install 1.74.0 --profile minimal --no-self-update
       - name: Check minimum supported Rust
         run: cargo +1.74.0 check --locked
+
+  portability:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-2022]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install tested Rust
+        run: rustup toolchain install 1.97.1 --profile minimal --no-self-update
+      - name: Test portable build
+        run: cargo +1.97.1 test --locked --all-targets --all-features

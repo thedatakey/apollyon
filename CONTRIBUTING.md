@@ -15,9 +15,12 @@ Install Rust 1.74 or newer and Python 3.11 or newer, then run:
 
 ```sh
 cargo fmt --all --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test --all-targets --all-features
+cargo clippy --locked --all-targets --all-features -- -D warnings
+cargo test --locked --all-targets --all-features
+cargo build --locked
 python3 scripts/validate_agents.py
+python3 scripts/validate_integrations.py
+python3 scripts/validate_outputs.py target/debug/apollyon
 ```
 
 New rules need positive fixtures, safe negative controls, language scoping,

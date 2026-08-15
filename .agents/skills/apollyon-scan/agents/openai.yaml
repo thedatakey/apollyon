@@ -1,0 +1,4 @@
+interface:
+  display_name: "Apollyon Security Scan"
+  short_description: "Run bounded source-security scans"
+  default_prompt: "Use $apollyon-scan to assess this authorized repository and report bounded, reproducible security candidates."

@@ -5,8 +5,8 @@ use std::{
     env,
     fmt::Write as _,
     fs,
-    io::Read,
-    path::{Path, PathBuf},
+    io::{ErrorKind, Read, Write as _},
+    path::{Component, Path, PathBuf},
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -16,7 +16,76 @@ const MAX_DISCOVERED_ENTRIES: usize = 100_000;
 const MAX_FINDINGS: usize = 10_000;
 const MAX_ERRORS: usize = 1_000;
 const MAX_SNIPPET_CHARS: usize = 180;
-const EXTENSIONS: &[&str] = &["c", "cc", "cpp", "cxx", "h", "hpp", "rs"];
+const DEFAULT_IGNORED_DIRECTORIES: &[&str] = &[
+    ".git",
+    ".hg",
+    ".svn",
+    ".next",
+    ".nuxt",
+    ".tox",
+    ".venv",
+    "build",
+    "coverage",
+    "dist",
+    "node_modules",
+    "target",
+    "vendor",
+    "venv",
+];
+
+#[derive(Clone, Copy)]
+struct RuleInfo {
+    id: &'static str,
+    name: &'static str,
+    severity: Severity,
+    message: &'static str,
+    languages: &'static str,
+}
+
+const RULES: &[RuleInfo] = &[
+    RuleInfo {
+        id: "APO001",
+        name: "unbounded-c-string-operation",
+        severity: Severity::High,
+        message: "Unbounded C string operation may permit memory corruption; use a length-aware API and verify destination bounds.",
+        languages: "C and C++",
+    },
+    RuleInfo {
+        id: "APO002",
+        name: "manual-memory-copy-boundary",
+        severity: Severity::Info,
+        message: "Manual memory copy boundary requires review of source length, destination capacity, and overlap assumptions.",
+        languages: "C and C++",
+    },
+    RuleInfo {
+        id: "APO003",
+        name: "rust-unsafe-boundary",
+        severity: Severity::Medium,
+        message: "Rust unsafe code requires a documented safety invariant and focused validation.",
+        languages: "Rust",
+    },
+    RuleInfo {
+        id: "APO004",
+        name: "dynamic-code-execution",
+        severity: Severity::High,
+        message: "Dynamic code execution requires review of whether code or input can be influenced by an attacker.",
+        languages: "JavaScript, TypeScript, Python, PHP, and Ruby",
+    },
+    RuleInfo {
+        id: "APO005",
+        name: "operating-system-command-boundary",
+        severity: Severity::Medium,
+        message: "Operating-system command execution requires review of argument separation, shell use, and untrusted input.",
+        languages: "C, C++, C#, Go, Java, Kotlin, JavaScript, TypeScript, PHP, Python, Ruby, Rust, and Swift",
+    },
+    RuleInfo {
+        id: "APO006",
+        name: "unsafe-deserialization-boundary",
+        severity: Severity::High,
+        message: "Deserialization API may construct attacker-controlled objects; require a safe format, trusted input, or an explicit allowlist.",
+        languages: "Python, Java, Kotlin, C#, PHP, and Ruby",
+    },
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Severity {
@@ -41,6 +110,14 @@ impl Severity {
             Self::High => 2,
         }
     }
+
+    fn sarif_level(self) -> &'static str {
+        match self {
+            Self::Info => "note",
+            Self::Medium => "warning",
+            Self::High => "error",
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -60,6 +137,8 @@ struct ScanReport {
     scanned_files: usize,
     skipped_files: usize,
     skipped_symlinks: usize,
+    excluded_files: usize,
+    excluded_directories: usize,
     total_bytes: usize,
     complete: bool,
     errors: Vec<String>,
@@ -71,6 +150,7 @@ struct ScanReport {
 enum OutputFormat {
     Text,
     Json,
+    Sarif,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -79,37 +159,52 @@ struct ScanOptions {
     format: OutputFormat,
     include_snippets: bool,
     fail_on: Option<Severity>,
+    output: Option<PathBuf>,
+    excludes: Vec<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 enum Command {
     Help,
+    Rules,
     Version,
     Scan(ScanOptions),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Language {
-    CLike,
+    CFamily,
+    CSharp,
+    Go,
+    JavaScript,
+    Jvm,
+    Php,
+    Python,
+    Ruby,
     Rust,
+    Swift,
 }
 
 #[derive(Default)]
 struct LexState {
     block_comment_depth: usize,
     quote: Option<char>,
+    csharp_verbatim_quote: bool,
+    triple_quote: Option<char>,
     rust_raw_hashes: Option<usize>,
+    slash_regex_unterminated: bool,
 }
 
 fn usage() -> &'static str {
     "Apollyon — bounded, evidence-first source assessment\n\n\
-Usage:\n  apollyon scan <path> [--format text|json] [--include-snippets] [--fail-on info|medium|high|never]\n  apollyon --version\n  apollyon --help\n\n\
-Exit codes: 0 complete, 1 finding met --fail-on, 2 usage error, 3 incomplete scan."
+Usage:\n  apollyon scan <path> [--format text|json|sarif] [--output <file>] [--exclude <path>]...\n                       [--include-snippets] [--fail-on info|medium|high|never]\n  apollyon rules\n  apollyon --version\n  apollyon --help\n\n\
+Exit codes: 0 complete, 1 finding met --fail-on, 2 invocation/output error, 3 incomplete scan."
 }
 
 fn parse_args(args: &[String]) -> Result<Command, String> {
     match args.first().map(String::as_str) {
         Some("--help" | "-h" | "help") if args.len() == 1 => return Ok(Command::Help),
+        Some("rules") if args.len() == 1 => return Ok(Command::Rules),
         Some("--version" | "-V") if args.len() == 1 => return Ok(Command::Version),
         Some("scan") => {}
         _ => return Err(usage().to_owned()),
@@ -124,6 +219,8 @@ fn parse_args(args: &[String]) -> Result<Command, String> {
         format: OutputFormat::Text,
         include_snippets: false,
         fail_on: None,
+        output: None,
+        excludes: Vec::new(),
     };
     let mut index = 2;
     while index < args.len() {
@@ -131,12 +228,27 @@ fn parse_args(args: &[String]) -> Result<Command, String> {
             "--format" => {
                 let value = args
                     .get(index + 1)
-                    .ok_or_else(|| "--format requires text or json".to_owned())?;
+                    .ok_or_else(|| "--format requires text, json, or sarif".to_owned())?;
                 options.format = match value.as_str() {
                     "text" => OutputFormat::Text,
                     "json" => OutputFormat::Json,
-                    _ => return Err("--format must be text or json".to_owned()),
+                    "sarif" => OutputFormat::Sarif,
+                    _ => return Err("--format must be text, json, or sarif".to_owned()),
                 };
+                index += 2;
+            }
+            "--output" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "--output requires a file path".to_owned())?;
+                options.output = Some(PathBuf::from(value));
+                index += 2;
+            }
+            "--exclude" => {
+                let value = args.get(index + 1).ok_or_else(|| {
+                    "--exclude requires a relative path or directory name".to_owned()
+                })?;
+                options.excludes.push(normalize_exclude(value)?);
                 index += 2;
             }
             "--include-snippets" => {
@@ -167,18 +279,38 @@ fn parse_args(args: &[String]) -> Result<Command, String> {
     Ok(Command::Scan(options))
 }
 
+fn normalize_exclude(value: &str) -> Result<String, String> {
+    let normalized_separators = value.replace('\\', "/");
+    let mut parts = Vec::new();
+    for component in Path::new(&normalized_separators).components() {
+        match component {
+            Component::Normal(part) => parts.push(part.to_string_lossy().into_owned()),
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err("--exclude must stay within the scan root".to_owned());
+            }
+        }
+    }
+    if parts.is_empty() {
+        return Err("--exclude must not be empty".to_owned());
+    }
+    Ok(parts.join("/"))
+}
+
 fn language_for(path: &Path) -> Option<Language> {
-    let extension = path.extension()?.to_str()?;
-    if extension.eq_ignore_ascii_case("rs") {
-        Some(Language::Rust)
-    } else if EXTENSIONS
-        .iter()
-        .filter(|candidate| **candidate != "rs")
-        .any(|candidate| extension.eq_ignore_ascii_case(candidate))
-    {
-        Some(Language::CLike)
-    } else {
-        None
+    let extension = path.extension()?.to_str()?.to_ascii_lowercase();
+    match extension.as_str() {
+        "c" | "cc" | "cpp" | "cxx" | "h" | "hh" | "hpp" | "hxx" => Some(Language::CFamily),
+        "cs" => Some(Language::CSharp),
+        "go" => Some(Language::Go),
+        "java" | "kt" | "kts" => Some(Language::Jvm),
+        "js" | "jsx" | "mjs" | "cjs" | "ts" | "tsx" => Some(Language::JavaScript),
+        "php" | "phtml" => Some(Language::Php),
+        "py" | "pyw" => Some(Language::Python),
+        "rb" | "rake" => Some(Language::Ruby),
+        "rs" => Some(Language::Rust),
+        "swift" => Some(Language::Swift),
+        _ => None,
     }
 }
 
@@ -219,6 +351,105 @@ fn is_rust_lifetime(chars: &[char], index: usize) -> bool {
     chars.get(cursor) != Some(&'\'')
 }
 
+fn uses_slash_comments(language: Language) -> bool {
+    !matches!(language, Language::Python | Language::Ruby)
+}
+
+fn uses_hash_comments(language: Language) -> bool {
+    matches!(language, Language::Php | Language::Python | Language::Ruby)
+}
+
+fn supports_nested_block_comments(language: Language) -> bool {
+    matches!(language, Language::Rust | Language::Swift)
+}
+
+fn supports_backtick_strings(language: Language) -> bool {
+    matches!(language, Language::Go | Language::JavaScript)
+}
+
+fn supports_triple_quotes(language: Language) -> bool {
+    matches!(
+        language,
+        Language::CSharp | Language::Jvm | Language::Python | Language::Swift
+    )
+}
+
+fn starts_triple_quote(chars: &[char], index: usize, quote: char) -> bool {
+    chars.get(index) == Some(&quote)
+        && chars.get(index + 1) == Some(&quote)
+        && chars.get(index + 2) == Some(&quote)
+}
+
+fn slash_regex_can_start(code_before_slash: &str) -> bool {
+    let trimmed = code_before_slash.trim_end();
+    let Some(last) = trimmed.chars().next_back() else {
+        return true;
+    };
+    if matches!(
+        last,
+        '(' | '['
+            | '{'
+            | ':'
+            | ','
+            | ';'
+            | '='
+            | '!'
+            | '?'
+            | '&'
+            | '|'
+            | '+'
+            | '-'
+            | '*'
+            | '%'
+            | '^'
+            | '~'
+            | '<'
+            | '>'
+    ) {
+        return true;
+    }
+    [
+        "await", "case", "delete", "in", "instanceof", "new", "of", "return", "throw",
+        "typeof", "void", "yield",
+    ]
+    .iter()
+    .any(|keyword| {
+        trimmed.strip_suffix(keyword).is_some_and(|prefix| {
+            !matches!(prefix.chars().next_back(), Some(character) if is_identifier_character(character))
+        })
+    })
+}
+
+fn slash_regex_end(chars: &[char], start: usize) -> Option<usize> {
+    let mut index = start + 1;
+    let mut in_character_class = false;
+    while index < chars.len() {
+        match chars[index] {
+            '\\' => index = (index + 2).min(chars.len()),
+            '[' if !in_character_class => {
+                in_character_class = true;
+                index += 1;
+            }
+            ']' if in_character_class => {
+                in_character_class = false;
+                index += 1;
+            }
+            '/' if !in_character_class => {
+                index += 1;
+                while chars
+                    .get(index)
+                    .is_some_and(|character| character.is_alphabetic())
+                {
+                    index += 1;
+                }
+                return Some(index);
+            }
+            _ => index += 1,
+        }
+    }
+    None
+}
+
 fn sanitize_code_line(line: &str, language: Language, state: &mut LexState) -> String {
     let chars: Vec<char> = line.chars().collect();
     let mut output = String::with_capacity(line.len());
@@ -236,8 +467,32 @@ fn sanitize_code_line(line: &str, language: Language, state: &mut LexState) -> S
             output.push(' ');
             continue;
         }
+        if let Some(quote) = state.triple_quote {
+            if starts_triple_quote(&chars, index, quote) {
+                state.triple_quote = None;
+                index += 3;
+            } else if chars[index] == '\\' {
+                index = (index + 2).min(chars.len());
+            } else {
+                index += 1;
+            }
+            output.push(' ');
+            continue;
+        }
         if let Some(quote) = state.quote {
-            if chars[index] == '\\' {
+            if state.csharp_verbatim_quote
+                && chars[index] == quote
+                && chars.get(index + 1) == Some(&quote)
+            {
+                index += 2;
+            } else if state.csharp_verbatim_quote && chars[index] == quote {
+                state.quote = None;
+                state.csharp_verbatim_quote = false;
+                index += 1;
+            } else if chars[index] == '\\'
+                && !(language == Language::Go && quote == '`')
+                && !state.csharp_verbatim_quote
+            {
                 index = (index + 2).min(chars.len());
             } else {
                 if chars[index] == quote {
@@ -249,7 +504,7 @@ fn sanitize_code_line(line: &str, language: Language, state: &mut LexState) -> S
             continue;
         }
         if state.block_comment_depth > 0 {
-            if language == Language::Rust
+            if supports_nested_block_comments(language)
                 && chars[index] == '/'
                 && chars.get(index + 1) == Some(&'*')
             {
@@ -264,14 +519,38 @@ fn sanitize_code_line(line: &str, language: Language, state: &mut LexState) -> S
             output.push(' ');
             continue;
         }
-        if chars[index] == '/' && chars.get(index + 1) == Some(&'/') {
+        if uses_hash_comments(language) && chars[index] == '#' {
             output.push(' ');
             break;
         }
-        if chars[index] == '/' && chars.get(index + 1) == Some(&'*') {
+        if uses_slash_comments(language)
+            && chars[index] == '/'
+            && chars.get(index + 1) == Some(&'/')
+        {
+            output.push(' ');
+            break;
+        }
+        if uses_slash_comments(language)
+            && chars[index] == '/'
+            && chars.get(index + 1) == Some(&'*')
+        {
             state.block_comment_depth = 1;
             output.push(' ');
             index += 2;
+            continue;
+        }
+        if matches!(language, Language::JavaScript | Language::Ruby)
+            && chars[index] == '/'
+            && chars.get(index + 1) != Some(&'=')
+            && slash_regex_can_start(&output)
+        {
+            if let Some(end) = slash_regex_end(&chars, index) {
+                index = end;
+            } else {
+                state.slash_regex_unterminated = true;
+                index = chars.len();
+            }
+            output.push(' ');
             continue;
         }
         if language == Language::Rust {
@@ -287,7 +566,27 @@ fn sanitize_code_line(line: &str, language: Language, state: &mut LexState) -> S
                 continue;
             }
         }
-        if matches!(chars[index], '"' | '\'') {
+        if supports_triple_quotes(language)
+            && (chars[index] == '"' || (language == Language::Python && chars[index] == '\''))
+            && starts_triple_quote(&chars, index, chars[index])
+        {
+            state.triple_quote = Some(chars[index]);
+            output.push(' ');
+            index += 3;
+            continue;
+        }
+        if matches!(chars[index], '"' | '\'')
+            || (chars[index] == '`' && supports_backtick_strings(language))
+        {
+            let previous = index
+                .checked_sub(1)
+                .and_then(|position| chars.get(position));
+            let two_before = index
+                .checked_sub(2)
+                .and_then(|position| chars.get(position));
+            state.csharp_verbatim_quote = language == Language::CSharp
+                && chars[index] == '"'
+                && (previous == Some(&'@') || (two_before == Some(&'@') && previous == Some(&'$')));
             state.quote = Some(chars[index]);
             output.push(' ');
             index += 1;
@@ -337,6 +636,62 @@ fn contains_call(code: &str, function: &str) -> bool {
         }
     }
     false
+}
+
+fn contains_any_call(code: &str, functions: &[&str]) -> bool {
+    functions
+        .iter()
+        .any(|function| contains_call(code, function))
+}
+
+fn contains_ruby_command(code: &str, name: &str) -> bool {
+    for (start, _) in code.match_indices(name) {
+        let end = start + name.len();
+        let left_ok = !matches!(
+            code[..start].chars().next_back(),
+            Some(character) if is_identifier_character(character)
+        );
+        let right_ok = !matches!(
+            code[end..].chars().next(),
+            Some(character) if is_identifier_character(character)
+        );
+        if !left_ok || !right_ok {
+            continue;
+        }
+
+        let statement_prefix = code[..start]
+            .rsplit_once(';')
+            .map_or(&code[..start], |(_, suffix)| suffix)
+            .trim_start();
+        if statement_prefix.starts_with("def ") || code[..start].trim_end().ends_with(':') {
+            continue;
+        }
+
+        let after = &code[end..];
+        if after.starts_with('(') {
+            return true;
+        }
+        let argument = after.trim_start();
+        if argument.len() < after.len()
+            && argument.chars().next().is_some_and(|character| {
+                !matches!(character, '=' | ':' | ';' | ',' | ')' | ']' | '}')
+            })
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn contains_any_ruby_command(code: &str, names: &[&str]) -> bool {
+    names.iter().any(|name| contains_ruby_command(code, name))
+}
+
+fn rule_info(id: &str) -> &'static RuleInfo {
+    RULES
+        .iter()
+        .find(|rule| rule.id == id)
+        .expect("scanner references a registered rule")
 }
 
 fn is_unsafe_display_character(character: char) -> bool {
@@ -392,46 +747,106 @@ fn scan_file(
     };
     let mut findings = Vec::new();
     let mut lex_state = LexState::default();
+    let mut csharp_unsafe_formatter_seen = false;
     for (index, original_line) in contents.lines().enumerate() {
         let code = sanitize_code_line(original_line, language, &mut lex_state);
-        let mut candidates = Vec::with_capacity(2);
-        if language == Language::CLike
-            && ["gets", "strcpy", "strcat", "sprintf", "vsprintf"]
-                .iter()
-                .any(|function| contains_call(&code, function))
+        if language == Language::CSharp
+            && [
+                "new BinaryFormatter",
+                "new LosFormatter",
+                "new ObjectStateFormatter",
+            ]
+            .iter()
+            .any(|constructor| code.contains(constructor))
         {
-            candidates.push((
-                    "APO001",
-                    Severity::High,
-                    "Unbounded C string operation may permit memory corruption; use a length-aware API and verify destination bounds.",
-                ));
+            csharp_unsafe_formatter_seen = true;
         }
-        if language == Language::CLike
-            && ["memcpy", "memmove"]
-                .iter()
-                .any(|function| contains_call(&code, function))
+        let mut candidates = Vec::with_capacity(4);
+        if language == Language::CFamily
+            && contains_any_call(&code, &["gets", "strcpy", "strcat", "sprintf", "vsprintf"])
         {
-            candidates.push((
-                    "APO002",
-                    Severity::Info,
-                    "Manual memory copy boundary requires review of source length, destination capacity, and overlap assumptions.",
-                ));
+            candidates.push(rule_info("APO001"));
+        }
+        if language == Language::CFamily && contains_any_call(&code, &["memcpy", "memmove"]) {
+            candidates.push(rule_info("APO002"));
         }
         if language == Language::Rust && contains_token(&code, "unsafe") {
-            candidates.push((
-                "APO003",
-                Severity::Medium,
-                "Rust unsafe code requires a documented safety invariant and focused validation.",
-            ));
+            candidates.push(rule_info("APO003"));
         }
-        for (rule_id, severity, message) in candidates {
+        let dynamic_execution = match language {
+            Language::JavaScript => contains_any_call(&code, &["eval", "Function"]),
+            Language::Python => contains_any_call(&code, &["eval", "exec"]),
+            Language::Php => contains_call(&code, "eval"),
+            Language::Ruby => contains_any_ruby_command(
+                &code,
+                &["eval", "class_eval", "instance_eval", "module_eval"],
+            ),
+            _ => false,
+        };
+        if dynamic_execution {
+            candidates.push(rule_info("APO004"));
+        }
+        let shell_execution = match language {
+            Language::CFamily => contains_any_call(&code, &["system", "popen"]),
+            Language::CSharp => contains_call(&code, "Process.Start"),
+            Language::JavaScript => {
+                contains_any_call(&code, &["child_process.exec", "child_process.execSync"])
+            }
+            Language::Go => contains_any_call(&code, &["exec.Command", "exec.CommandContext"]),
+            Language::Jvm => {
+                contains_any_call(&code, &["ProcessBuilder", "Runtime.getRuntime().exec"])
+            }
+            Language::Php => contains_any_call(
+                &code,
+                &[
+                    "exec",
+                    "passthru",
+                    "popen",
+                    "proc_open",
+                    "shell_exec",
+                    "system",
+                ],
+            ),
+            Language::Python => contains_any_call(
+                &code,
+                &[
+                    "os.popen",
+                    "os.system",
+                    "subprocess.call",
+                    "subprocess.check_call",
+                    "subprocess.check_output",
+                    "subprocess.Popen",
+                    "subprocess.run",
+                ],
+            ),
+            Language::Ruby => contains_any_ruby_command(&code, &["exec", "spawn", "system"]),
+            Language::Rust => contains_call(&code, "Command::new"),
+            Language::Swift => contains_call(&code, "Process"),
+        };
+        if shell_execution {
+            candidates.push(rule_info("APO005"));
+        }
+        let unsafe_deserialization = match language {
+            Language::CSharp => csharp_unsafe_formatter_seen && contains_call(&code, "Deserialize"),
+            Language::Jvm => contains_call(&code, "readObject"),
+            Language::Php => contains_call(&code, "unserialize"),
+            Language::Python => {
+                contains_any_call(&code, &["pickle.load", "pickle.loads", "yaml.load"])
+            }
+            Language::Ruby => contains_ruby_command(&code, "Marshal.load"),
+            _ => false,
+        };
+        if unsafe_deserialization {
+            candidates.push(rule_info("APO006"));
+        }
+        for rule in candidates {
             if findings.len() == finding_budget {
                 return (findings, true, true);
             }
             findings.push(Finding {
-                rule_id,
-                severity,
-                message,
+                rule_id: rule.id,
+                severity: rule.severity,
+                message: rule.message,
                 path: display_path.to_owned(),
                 line: index + 1,
                 snippet: include_snippets.then(|| safe_snippet(original_line)),
@@ -440,28 +855,61 @@ fn scan_file(
     }
     let lexically_complete = lex_state.block_comment_depth == 0
         && lex_state.quote.is_none()
-        && lex_state.rust_raw_hashes.is_none();
+        && lex_state.triple_quote.is_none()
+        && lex_state.rust_raw_hashes.is_none()
+        && !lex_state.slash_regex_unterminated;
     (findings, false, lexically_complete)
 }
 
 fn relative_display(root: &Path, path: &Path) -> String {
-    if root.is_file() {
-        return path
-            .file_name()
+    let display = if root.is_file() {
+        path.file_name()
             .unwrap_or(path.as_os_str())
             .to_string_lossy()
-            .into_owned();
+            .into_owned()
+    } else {
+        path.strip_prefix(root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .into_owned()
+    };
+    display.replace('\\', "/")
+}
+
+fn root_display(root: &Path) -> String {
+    if root.is_file() || root != Path::new(".") {
+        root.file_name()
+            .map(|name| name.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_else(|| ".".to_owned())
+    } else {
+        ".".to_owned()
     }
-    path.strip_prefix(root)
-        .unwrap_or(path)
-        .to_string_lossy()
-        .into_owned()
+}
+
+fn matches_custom_exclude(root: &Path, path: &Path, excludes: &[String]) -> bool {
+    let name = path.file_name().and_then(|name| name.to_str());
+    let relative = relative_display(root, path);
+    excludes.iter().any(|exclude| {
+        if exclude.contains('/') {
+            relative == *exclude || relative.starts_with(&format!("{exclude}/"))
+        } else {
+            name == Some(exclude.as_str())
+        }
+    })
+}
+
+fn should_ignore_directory(root: &Path, path: &Path, excludes: &[String]) -> bool {
+    let name = path.file_name().and_then(|name| name.to_str());
+    name.is_some_and(|name| DEFAULT_IGNORED_DIRECTORIES.contains(&name))
+        || matches_custom_exclude(root, path, excludes)
 }
 
 #[derive(Default)]
 struct Discovery {
     files: Vec<PathBuf>,
     skipped_symlinks: usize,
+    excluded_files: usize,
+    excluded_directories: usize,
     errors: Vec<String>,
     suppressed_errors: usize,
 }
@@ -487,12 +935,12 @@ impl ScanReport {
     }
 }
 
-fn discover_files(root: &Path) -> Discovery {
+fn discover_files(root: &Path, excludes: &[String]) -> Discovery {
     let mut discovery = Discovery::default();
     let root_metadata = match fs::symlink_metadata(root) {
         Ok(metadata) => metadata,
         Err(error) => {
-            discovery.add_error(format!("cannot inspect {}: {error}", root.display()));
+            discovery.add_error(format!("cannot inspect scan root: {error}"));
             return discovery;
         }
     };
@@ -501,12 +949,12 @@ fn discover_files(root: &Path) -> Discovery {
         return discovery;
     }
     if root_metadata.is_file() {
-        if language_for(root).is_some() {
+        if matches_custom_exclude(root, root, excludes) {
+            discovery.excluded_files += 1;
+        } else if language_for(root).is_some() {
             discovery.files.push(root.to_path_buf());
         } else {
-            discovery.add_error(
-                "the scan root is not a supported C, C++, header, or Rust file".to_owned(),
-            );
+            discovery.add_error("the scan root is not a supported source file".to_owned());
         }
         return discovery;
     }
@@ -559,15 +1007,17 @@ fn discover_files(root: &Path) -> Discovery {
                 continue;
             }
             if file_type.is_dir() {
-                if !path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .is_some_and(|name| matches!(name, ".git" | "target" | "node_modules"))
-                {
+                if should_ignore_directory(root, &path, excludes) {
+                    discovery.excluded_directories += 1;
+                } else {
                     stack.push(path);
                 }
             } else if file_type.is_file() && language_for(&path).is_some() {
-                discovery.files.push(path);
+                if matches_custom_exclude(root, &path, excludes) {
+                    discovery.excluded_files += 1;
+                } else {
+                    discovery.files.push(path);
+                }
             }
         }
     }
@@ -615,23 +1065,29 @@ fn path_is_within_root(canonical_root: &Path, root_is_file: bool, candidate: &Pa
     }
 }
 
-fn scan_path(root: &Path, include_snippets: bool) -> ScanReport {
-    let discovery = discover_files(root);
+fn scan_path(root: &Path, include_snippets: bool, excludes: &[String]) -> ScanReport {
+    let discovery = discover_files(root, excludes);
     let supported_files = discovery.files.len();
     let canonical_root = fs::canonicalize(root).ok();
     let root_is_file = root.is_file();
     let mut report = ScanReport {
-        root: root.display().to_string(),
+        root: root_display(root),
         supported_files,
         scanned_files: 0,
         skipped_files: 0,
         skipped_symlinks: discovery.skipped_symlinks,
+        excluded_files: discovery.excluded_files,
+        excluded_directories: discovery.excluded_directories,
         total_bytes: 0,
         complete: discovery.errors.is_empty() && discovery.suppressed_errors == 0,
         errors: discovery.errors,
         suppressed_errors: discovery.suppressed_errors,
         findings: Vec::new(),
     };
+
+    if report.supported_files == 0 && report.errors.is_empty() {
+        report.add_error("no supported source files were discovered".to_owned());
+    }
 
     for path in discovery.files {
         let display_path = relative_display(root, &path);
@@ -722,6 +1178,18 @@ fn json_string(output: &mut String, value: &str) {
     output.push('"');
 }
 
+fn sarif_uri(path: &str) -> String {
+    let mut output = String::with_capacity(path.len());
+    for byte in path.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/') {
+            output.push(char::from(byte));
+        } else {
+            let _ = write!(output, "%{byte:02X}");
+        }
+    }
+    output
+}
+
 fn render_json(report: &ScanReport) -> String {
     let mut output = String::from("{\"schema\":\"apollyon.findings/v1\",\"tool\":{");
     output.push_str("\"name\":\"apollyon\",\"version\":");
@@ -730,11 +1198,13 @@ fn render_json(report: &ScanReport) -> String {
     json_string(&mut output, &report.root);
     let _ = write!(
         output,
-        ",\"summary\":{{\"supported_files\":{},\"scanned_files\":{},\"skipped_files\":{},\"skipped_symlinks\":{},\"total_bytes\":{},\"suppressed_errors\":{},\"complete\":{}}},\"errors\":[",
+        ",\"summary\":{{\"supported_files\":{},\"scanned_files\":{},\"skipped_files\":{},\"skipped_symlinks\":{},\"excluded_files\":{},\"excluded_directories\":{},\"total_bytes\":{},\"suppressed_errors\":{},\"complete\":{}}},\"errors\":[",
         report.supported_files,
         report.scanned_files,
         report.skipped_files,
         report.skipped_symlinks,
+        report.excluded_files,
+        report.excluded_directories,
         report.total_bytes,
         report.suppressed_errors,
         report.complete
@@ -770,6 +1240,104 @@ fn render_json(report: &ScanReport) -> String {
     output
 }
 
+fn render_sarif(report: &ScanReport) -> String {
+    let mut output = String::from(
+        "{\"$schema\":\"https://json.schemastore.org/sarif-2.1.0.json\",\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"Apollyon\",\"semanticVersion\":",
+    );
+    json_string(&mut output, VERSION);
+    output.push_str(",\"informationUri\":\"https://github.com/thedatakey/apollyon\",\"rules\":[");
+    for (index, rule) in RULES.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push_str("{\"id\":");
+        json_string(&mut output, rule.id);
+        output.push_str(",\"name\":");
+        json_string(&mut output, rule.name);
+        output.push_str(",\"shortDescription\":{\"text\":");
+        json_string(&mut output, rule.message);
+        output.push_str("},\"properties\":{\"languages\":");
+        json_string(&mut output, rule.languages);
+        output.push_str("}}");
+    }
+    output.push_str("]}},\"invocations\":[{\"executionSuccessful\":");
+    output.push_str(if report.complete { "true" } else { "false" });
+    output.push_str(",\"toolExecutionNotifications\":[");
+    for (index, error) in report.errors.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push_str("{\"level\":\"warning\",\"message\":{\"text\":");
+        json_string(&mut output, error);
+        output.push_str("}}");
+    }
+    if report.suppressed_errors > 0 {
+        if !report.errors.is_empty() {
+            output.push(',');
+        }
+        output.push_str("{\"level\":\"warning\",\"message\":{\"text\":");
+        json_string(
+            &mut output,
+            &format!(
+                "{} additional scan error(s) were suppressed",
+                report.suppressed_errors
+            ),
+        );
+        output.push_str("}}");
+    }
+    output.push_str("],\"properties\":{\"scannedFiles\":");
+    let _ = write!(
+        output,
+        "{},\"supportedFiles\":{},\"totalBytes\":{},\"skippedSymlinks\":{},\"excludedFiles\":{},\"excludedDirectories\":{}}}}}],\"results\":[",
+        report.scanned_files,
+        report.supported_files,
+        report.total_bytes,
+        report.skipped_symlinks,
+        report.excluded_files,
+        report.excluded_directories
+    );
+    for (index, finding) in report.findings.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push_str("{\"ruleId\":");
+        json_string(&mut output, finding.rule_id);
+        output.push_str(",\"level\":");
+        json_string(&mut output, finding.severity.sarif_level());
+        output.push_str(",\"message\":{\"text\":");
+        json_string(&mut output, finding.message);
+        output.push_str("},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":");
+        json_string(&mut output, &sarif_uri(&finding.path));
+        let _ = write!(output, "}},\"region\":{{\"startLine\":{}", finding.line);
+        if let Some(snippet) = &finding.snippet {
+            output.push_str(",\"snippet\":{\"text\":");
+            json_string(&mut output, snippet);
+            output.push('}');
+        }
+        output.push_str("}}}]}");
+    }
+    output.push_str("]}]}");
+    output
+}
+
+fn render_rules() -> String {
+    let mut output = String::from("Supported source families:\n");
+    output.push_str(
+        "  C/C++, C#, Go, Java/Kotlin, JavaScript/TypeScript, PHP, Python, Ruby, Rust, Swift\n\nBounded rules:\n",
+    );
+    for rule in RULES {
+        let _ = writeln!(
+            output,
+            "  {} [{}] {}\n    Languages: {}",
+            rule.id,
+            rule.severity.as_str(),
+            rule.message,
+            rule.languages
+        );
+    }
+    output
+}
+
 fn render_text(report: &ScanReport) -> String {
     let mut output = String::new();
     for finding in &report.findings {
@@ -787,16 +1355,24 @@ fn render_text(report: &ScanReport) -> String {
         }
     }
     if report.findings.is_empty() {
-        output.push_str("Apollyon: no matches for the enabled bounded rules.\n");
+        if report.complete {
+            output.push_str("Apollyon: no matches for the enabled bounded rules.\n");
+        } else {
+            output.push_str(
+                "Apollyon: scan incomplete; no matches in the files successfully scanned.\n",
+            );
+        }
     }
     let _ = writeln!(
         output,
-        "\n{} finding(s); {}/{} supported file(s) scanned; {} byte(s) read; {} symlink(s) skipped; complete: {}.",
+        "\n{} finding(s); {}/{} supported file(s) scanned; {} byte(s) read; {} symlink(s) skipped; {} file(s) and {} directories excluded; complete: {}.",
         report.findings.len(),
         report.scanned_files,
         report.supported_files,
         report.total_bytes,
         report.skipped_symlinks,
+        report.excluded_files,
+        report.excluded_directories,
         report.complete
     );
     for error in &report.errors {
@@ -812,6 +1388,37 @@ fn render_text(report: &ScanReport) -> String {
     output
 }
 
+fn emit_output(rendered: &str, output_path: Option<&Path>) -> Result<(), String> {
+    if let Some(path) = output_path {
+        let mut contents = rendered.to_owned();
+        if !contents.ends_with('\n') {
+            contents.push('\n');
+        }
+        let mut options = fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let mut file = options.open(path).map_err(|error| {
+            if error.kind() == ErrorKind::AlreadyExists {
+                format!("refusing to overwrite existing output {}", path.display())
+            } else {
+                format!("cannot create output file {}: {error}", path.display())
+            }
+        })?;
+        file.write_all(contents.as_bytes())
+            .map_err(|error| format!("cannot write output file {}: {error}", path.display()))
+    } else {
+        print!("{rendered}");
+        if !rendered.ends_with('\n') {
+            println!();
+        }
+        Ok(())
+    }
+}
+
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
     let command = match parse_args(&args) {
@@ -823,12 +1430,18 @@ fn main() {
     };
     match command {
         Command::Help => println!("{}", usage()),
+        Command::Rules => print!("{}", render_rules()),
         Command::Version => println!("apollyon {VERSION}"),
         Command::Scan(options) => {
-            let report = scan_path(&options.path, options.include_snippets);
-            match options.format {
-                OutputFormat::Text => print!("{}", render_text(&report)),
-                OutputFormat::Json => println!("{}", render_json(&report)),
+            let report = scan_path(&options.path, options.include_snippets, &options.excludes);
+            let rendered = match options.format {
+                OutputFormat::Text => render_text(&report),
+                OutputFormat::Json => render_json(&report),
+                OutputFormat::Sarif => render_sarif(&report),
+            };
+            if let Err(message) = emit_output(&rendered, options.output.as_deref()) {
+                eprintln!("{}", safe_terminal(&message));
+                std::process::exit(2);
             }
             if !report.complete {
                 std::process::exit(3);
@@ -877,6 +1490,148 @@ mod tests {
         assert!(findings("safe.rs", "fn strcpy() {}").is_empty());
         assert!(findings("safe.c", "void unsafe(void) {}").is_empty());
         assert_eq!(findings("unsafe.rs", "unsafe fn boundary() {}").len(), 1);
+    }
+
+    #[test]
+    fn supports_major_manual_project_languages() {
+        for path in [
+            "code.c",
+            "code.cpp",
+            "code.cs",
+            "code.go",
+            "code.java",
+            "code.kt",
+            "code.js",
+            "code.tsx",
+            "code.php",
+            "code.py",
+            "code.rb",
+            "code.rs",
+            "code.swift",
+        ] {
+            assert!(
+                language_for(Path::new(path)).is_some(),
+                "unsupported: {path}"
+            );
+        }
+        assert!(language_for(Path::new("notes.txt")).is_none());
+    }
+
+    #[test]
+    fn detects_cross_language_review_boundaries() {
+        assert_eq!(
+            findings("dynamic.py", "result = eval(user_input)")[0].rule_id,
+            "APO004"
+        );
+        assert_eq!(
+            findings("shell.ts", "child_process.exec(command)")[0].rule_id,
+            "APO005"
+        );
+        assert_eq!(
+            findings("object.php", "$value = unserialize($input);")[0].rule_id,
+            "APO006"
+        );
+        assert_eq!(
+            findings("runner.go", "exec.Command(name, args...)")[0].rule_id,
+            "APO005"
+        );
+        assert_eq!(
+            findings(
+                "legacy.cs",
+                "var formatter = new BinaryFormatter();\nformatter.Deserialize(stream);"
+            )[0]
+            .rule_id,
+            "APO006"
+        );
+    }
+
+    #[test]
+    fn handles_go_raw_strings_without_backslash_escapes() {
+        let (result, _, complete) = scan_file(
+            Path::new("runner.go"),
+            "runner.go",
+            "var separator = `\\`\nexec.Command(name, args...)",
+            false,
+            MAX_FINDINGS,
+        );
+        assert!(complete);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].rule_id, "APO005");
+    }
+
+    #[test]
+    fn handles_csharp_verbatim_paths_without_backslash_escapes() {
+        let (result, _, complete) = scan_file(
+            Path::new("runner.cs"),
+            "runner.cs",
+            r#"var path = @"C:\";
+Process.Start(command);"#,
+            false,
+            MAX_FINDINGS,
+        );
+        assert!(complete);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].rule_id, "APO005");
+    }
+
+    #[test]
+    fn detects_ruby_command_style_calls_but_not_method_definitions() {
+        let result = findings(
+            "commands.rb",
+            "eval user_input\nsystem command\nMarshal.load payload",
+        );
+        assert_eq!(
+            result
+                .iter()
+                .map(|finding| finding.rule_id)
+                .collect::<Vec<_>>(),
+            vec!["APO004", "APO005", "APO006"]
+        );
+        assert!(findings(
+            "definitions.rb",
+            "def eval(input); end\ndef self.system(command); end\ndef Marshal.load(value); end"
+        )
+        .is_empty());
+    }
+
+    #[test]
+    fn javascript_regex_literals_do_not_hide_later_calls() {
+        let source = "const quotes = /['\"]/;\nconst url = /https?:\\/\\/example/;\neval(input);";
+        let (result, _, complete) = scan_file(
+            Path::new("regex.js"),
+            "regex.js",
+            source,
+            false,
+            MAX_FINDINGS,
+        );
+        assert!(complete);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].rule_id, "APO004");
+    }
+
+    #[test]
+    fn ruby_regex_literals_do_not_hide_later_commands() {
+        let (result, _, complete) = scan_file(
+            Path::new("regex.rb"),
+            "regex.rb",
+            "quotes = /['\"]/\nsystem command",
+            false,
+            MAX_FINDINGS,
+        );
+        assert!(complete);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].rule_id, "APO005");
+    }
+
+    #[test]
+    fn ignores_python_comments_and_multiline_strings() {
+        let source = "# eval(input)\ntext = \"\"\"\neval(input)\n\"\"\"\nprint(text)";
+        assert!(findings("safe.py", source).is_empty());
+        assert!(findings(
+            "safe.swift",
+            "let text = \"\"\"\nProcess()\n\"\"\"\nprint(text)"
+        )
+        .is_empty());
     }
 
     #[test]
@@ -947,6 +1702,13 @@ mod tests {
         assert!(parse_args(&["scan".into(), ".".into(), "--typo".into()]).is_err());
         assert!(parse_args(&["scan".into(), ".".into(), "--format".into()]).is_err());
         assert!(parse_args(&["scan".into()]).is_err());
+        assert!(parse_args(&[
+            "scan".into(),
+            ".".into(),
+            "--exclude".into(),
+            "../outside".into(),
+        ])
+        .is_err());
     }
 
     #[test]
@@ -977,8 +1739,31 @@ mod tests {
                 format: OutputFormat::Json,
                 include_snippets: true,
                 fail_on: Some(Severity::High),
+                output: None,
+                excludes: Vec::new(),
             })
         );
+    }
+
+    #[test]
+    fn parses_sarif_output_and_exclusions() {
+        let command = parse_args(&[
+            "scan".into(),
+            ".".into(),
+            "--format".into(),
+            "sarif".into(),
+            "--output".into(),
+            "report.sarif".into(),
+            "--exclude".into(),
+            "fixtures/generated".into(),
+        ])
+        .unwrap();
+        let Command::Scan(options) = command else {
+            panic!("expected scan command");
+        };
+        assert_eq!(options.format, OutputFormat::Sarif);
+        assert_eq!(options.output, Some(PathBuf::from("report.sarif")));
+        assert_eq!(options.excludes, vec!["fixtures/generated"]);
     }
 
     #[cfg(unix)]
@@ -994,12 +1779,83 @@ mod tests {
         fs::write(&source, "strcpy(a, b);").unwrap();
         symlink(&source, &link).unwrap();
 
-        let discovery = discover_files(&fixture);
+        let discovery = discover_files(&fixture, &[]);
         assert_eq!(discovery.files, vec![source]);
         assert_eq!(discovery.skipped_symlinks, 1);
         assert!(discovery.errors.is_empty());
 
         fs::remove_dir_all(&fixture).unwrap();
+    }
+
+    #[test]
+    fn discovery_ignores_dependencies_and_custom_directories() {
+        let fixture = env::temp_dir().join(format!("apollyon-exclude-test-{}", std::process::id()));
+        let source = fixture.join("src");
+        let dependency = fixture.join("node_modules");
+        let generated = fixture.join("fixtures/generated");
+        let _ = fs::remove_dir_all(&fixture);
+        fs::create_dir_all(&source).unwrap();
+        fs::create_dir_all(&dependency).unwrap();
+        fs::create_dir_all(&generated).unwrap();
+        fs::write(source.join("app.py"), "eval(user_input)").unwrap();
+        fs::write(source.join("skip.py"), "eval(user_input)").unwrap();
+        fs::write(dependency.join("dependency.js"), "eval(input)").unwrap();
+        fs::write(generated.join("generated.c"), "strcpy(a, b);").unwrap();
+
+        let discovery = discover_files(
+            &fixture,
+            &["fixtures/generated".to_owned(), "src/skip.py".to_owned()],
+        );
+        assert_eq!(discovery.files, vec![source.join("app.py")]);
+        assert_eq!(discovery.excluded_files, 1);
+        assert_eq!(discovery.excluded_directories, 2);
+
+        fs::remove_dir_all(&fixture).unwrap();
+    }
+
+    #[test]
+    fn empty_or_unsupported_directory_is_incomplete() {
+        let fixture = env::temp_dir().join(format!("apollyon-empty-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&fixture);
+        fs::create_dir(&fixture).unwrap();
+        fs::write(fixture.join("notes.txt"), "not source code").unwrap();
+
+        let report = scan_path(&fixture, false, &[]);
+        assert!(!report.complete);
+        assert_eq!(report.supported_files, 0);
+        assert_eq!(
+            report.errors,
+            vec!["no supported source files were discovered"]
+        );
+        let text = render_text(&report);
+        assert!(text.contains("scan incomplete; no matches"));
+        assert!(!text.contains("no matches for the enabled bounded rules"));
+
+        fs::remove_dir_all(&fixture).unwrap();
+    }
+
+    #[test]
+    fn machine_outputs_preserve_json_paths_and_encode_sarif_uris() {
+        let report = ScanReport {
+            root: ".".to_owned(),
+            supported_files: 1,
+            scanned_files: 1,
+            skipped_files: 0,
+            skipped_symlinks: 0,
+            excluded_files: 0,
+            excluded_directories: 0,
+            total_bytes: 10,
+            complete: true,
+            errors: Vec::new(),
+            suppressed_errors: 0,
+            findings: findings("src/é a#%?.py", "eval(input)"),
+        };
+        let json = render_json(&report);
+        let sarif = render_sarif(&report);
+        assert!(json.contains("\"path\":\"src/é a#%?.py\""));
+        assert!(sarif.contains("\"version\":\"2.1.0\""));
+        assert!(sarif.contains("\"ruleId\":\"APO004\""));
+        assert!(sarif.contains("\"uri\":\"src/%C3%A9%20a%23%25%3F.py\""));
     }
 
     #[cfg(unix)]
@@ -1034,6 +1890,68 @@ mod tests {
         assert!(read_bounded_regular_file(&source).is_err());
 
         fs::remove_dir_all(&fixture).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn output_rejects_symbolic_links() {
+        use std::os::unix::fs::symlink;
+
+        let fixture =
+            env::temp_dir().join(format!("apollyon-output-link-test-{}", std::process::id()));
+        let target = fixture.join("target.json");
+        let link = fixture.join("report.json");
+        let _ = fs::remove_dir_all(&fixture);
+        fs::create_dir(&fixture).unwrap();
+        fs::write(&target, "preserve").unwrap();
+        symlink(&target, &link).unwrap();
+
+        assert!(emit_output("{}", Some(&link)).is_err());
+        assert_eq!(fs::read_to_string(&target).unwrap(), "preserve");
+
+        fs::remove_dir_all(&fixture).unwrap();
+    }
+
+    #[test]
+    fn output_rejects_existing_regular_files_without_modifying_them() {
+        let fixture =
+            env::temp_dir().join(format!("apollyon-output-file-test-{}", std::process::id()));
+        let target = fixture.join("report.json");
+        let _ = fs::remove_dir_all(&fixture);
+        fs::create_dir(&fixture).unwrap();
+        fs::write(&target, "preserve").unwrap();
+
+        assert!(emit_output("{}", Some(&target)).is_err());
+        assert_eq!(fs::read_to_string(&target).unwrap(), "preserve");
+
+        fs::remove_dir_all(&fixture).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn output_files_are_private_on_unix() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let fixture =
+            env::temp_dir().join(format!("apollyon-output-mode-test-{}", std::process::id()));
+        let target = fixture.join("report.json");
+        let _ = fs::remove_dir_all(&fixture);
+        fs::create_dir(&fixture).unwrap();
+
+        emit_output("{}", Some(&target)).unwrap();
+        let mode = fs::metadata(&target).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+
+        fs::remove_dir_all(&fixture).unwrap();
+    }
+
+    #[test]
+    fn root_display_does_not_expose_parent_directories() {
+        assert_eq!(
+            root_display(Path::new("/private/customer/project")),
+            "project"
+        );
+        assert_eq!(root_display(Path::new(".")), ".");
     }
 
     #[test]

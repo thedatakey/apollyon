@@ -4,5 +4,10 @@ __pycache__/
 .env
 .env.*
 !.env.example
+CLAUDE.local.md
+**/.claude/settings.local.json
+/verification_harnesses/
+/case-output/
+/apollyon.sarif
 *.swp
 .DS_Store
