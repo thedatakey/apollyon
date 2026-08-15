@@ -1,10 +1,11 @@
+<h1 align="center">Apollyon — Source Code Security Scanner</h1>
+
+<p align="center"><strong>Find review-worthy patterns. See the scan's coverage and completion state.</strong></p>
+
 <p align="center">
-  <img src="docs/assets/apollyon-social-preview.png" alt="Apollyon — evidence-first source security" width="100%">
+  Open-source Rust static analysis for human-written and AI-generated code.<br>
+  Explicit scan coverage · Text, JSON, and SARIF · CI · Coding-agent workflows
 </p>
-
-<h1 align="center">Apollyon Code Security</h1>
-
-<p align="center"><strong>Evidence before verdicts.</strong></p>
 
 <p align="center">
   Created by <a href="https://github.com/thedatakey"><strong>Tom Koentjes</strong> (@thedatakey)</a>.
@@ -18,38 +19,36 @@
   <img alt="Public pre-alpha" src="https://img.shields.io/badge/status-public_pre--alpha-f59e0b">
 </p>
 
-Apollyon is a Rust CLI that identifies source-security review candidates in
-handwritten and AI-generated projects. It reports what it scanned, what it
-skipped, and whether coverage was complete, with human-readable text, versioned
-JSON, and SARIF 2.1.0 output.
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#see-it-work">See a real scan</a> ·
+  <a href="https://github.com/thedatakey/apollyon/releases/tag/v0.2.0">Download v0.2.0</a> ·
+  <a href="docs/AGENT_INTEGRATIONS.md">Coding-agent setup</a> ·
+  <a href="#current-capabilities">Supported rules</a>
+</p>
 
-**Status: public pre-alpha v0.2.0.** Apollyon currently uses six bounded lexical
-rules. Findings require human validation; a complete scan is not proof that a
-project is secure.
+<p align="center">
+  <img src="docs/assets/apollyon-social-preview.png" alt="Apollyon — evidence-first source code security scanner" width="80%">
+</p>
 
-[Download v0.2.0](https://github.com/thedatakey/apollyon/releases/tag/v0.2.0)
-· [Installation guide](docs/INSTALL.md)
-· [Agent integrations](docs/AGENT_INTEGRATIONS.md)
-· [Security policy](SECURITY.md)
+Apollyon is an evidence-first static analysis CLI written in Rust. It flags
+bounded security-review candidates around unsafe memory operations, dynamic
+code execution, operating-system commands, and unsafe deserialization across
+13 languages—without executing the target project. It works on ordinary local
+source trees, whether the code was written by a person or generated with AI.
 
-## 30-second start
+Every report records supported, scanned, skipped, and excluded counts, along
+with errors and whether the scan completed. Use terminal text for local review,
+versioned JSON for coding agents and automation, or SARIF 2.1.0 for CI and
+GitHub code scanning.
 
-### Download a prebuilt binary
+**Status: public pre-alpha v0.2.0.** Apollyon currently implements six bounded
+lexical rules. Findings require human validation; a complete scan is not proof
+that a project is secure.
 
-The v0.2.0 prerelease provides these archives:
+## Quick start
 
-| Platform | Asset |
-| --- | --- |
-| Linux x86-64 | `apollyon-v0.2.0-x86_64-unknown-linux-musl.tar.gz` |
-| macOS Apple Silicon | `apollyon-v0.2.0-aarch64-apple-darwin.tar.gz` |
-| macOS Intel | `apollyon-v0.2.0-x86_64-apple-darwin.tar.gz` |
-| Windows x86-64 | `apollyon-v0.2.0-x86_64-pc-windows-msvc.zip` |
-
-The binaries are currently unsigned. Verify the archive against the published
-`SHA256SUMS` and GitHub build attestation before use. See the
-[installation guide](docs/INSTALL.md) for exact commands and platform notes.
-
-### Install from the tagged source
+### Install with Cargo
 
 Requires Rust 1.74 or newer:
 
@@ -57,6 +56,23 @@ Requires Rust 1.74 or newer:
 cargo install --locked --git https://github.com/thedatakey/apollyon \
   --tag v0.2.0 apollyon
 ```
+
+### Or download a prebuilt binary
+
+The v0.2.0 prerelease provides these archives:
+
+| Platform | Asset |
+| --- | --- |
+| Linux x86-64 | [`apollyon-v0.2.0-x86_64-unknown-linux-musl.tar.gz`](https://github.com/thedatakey/apollyon/releases/download/v0.2.0/apollyon-v0.2.0-x86_64-unknown-linux-musl.tar.gz) |
+| macOS Apple Silicon | [`apollyon-v0.2.0-aarch64-apple-darwin.tar.gz`](https://github.com/thedatakey/apollyon/releases/download/v0.2.0/apollyon-v0.2.0-aarch64-apple-darwin.tar.gz) |
+| macOS Intel | [`apollyon-v0.2.0-x86_64-apple-darwin.tar.gz`](https://github.com/thedatakey/apollyon/releases/download/v0.2.0/apollyon-v0.2.0-x86_64-apple-darwin.tar.gz) |
+| Windows x86-64 | [`apollyon-v0.2.0-x86_64-pc-windows-msvc.zip`](https://github.com/thedatakey/apollyon/releases/download/v0.2.0/apollyon-v0.2.0-x86_64-pc-windows-msvc.zip) |
+
+The binaries are currently unsigned. Verify the archive against the published
+[`SHA256SUMS`](https://github.com/thedatakey/apollyon/releases/download/v0.2.0/SHA256SUMS)
+and GitHub build attestation before use. See the
+[installation guide](docs/INSTALL.md) for exact verification commands and
+platform notes.
 
 ### Scan a project
 
@@ -95,15 +111,31 @@ $ apollyon scan tests/fixtures/manual-project --exclude generated
 The summary is part of the evidence. `complete: true` describes bounded scan
 completion; it is never a security verdict.
 
+If this evidence-first approach is useful, click GitHub's **Star** button to
+bookmark Apollyon and help other developers discover it. Use
+**Watch → Custom → Releases** when you want release notifications.
+
+Trying the pre-alpha? [Report a reproducible bug](https://github.com/thedatakey/apollyon/issues/new?template=bug_report.md)
+or [request a bounded rule or language](https://github.com/thedatakey/apollyon/issues/new?template=feature_request.md).
+False positives, missing language behavior, and coding-agent integration
+feedback are especially useful.
+
 ## Why Apollyon?
+
+Apollyon is built for developers reviewing human-written or AI-assisted pull
+requests, AppSec and DevSecOps teams that need auditable local evidence, and
+coding-agent workflows that must distinguish "no matches" from "scan
+incomplete."
 
 - **Evidence before verdicts:** every lexical match remains a review candidate.
 - **Explicit coverage:** reports scanned, skipped, excluded, and incomplete work.
 - **Provenance-neutral:** evaluates handwritten and AI-generated source equally.
 - **Automation-ready:** stable exit codes plus JSON and SARIF 2.1.0.
-- **Agent-portable:** usable from Codex, Claude Code, Cursor, Gemini CLI, Hermes,
-  Copilot, OpenCode, Aider, and any terminal-capable coding environment.
-- **Safe by default:** never executes target source and keeps snippets disabled.
+- **Agent-ready:** standalone CLI plus checked-in guidance for Codex, Claude Code,
+  Cursor, Gemini CLI, Hermes, Copilot, OpenCode, Aider, and other
+  terminal-capable environments.
+- **No target execution:** scans source without running project code, builds,
+  hooks, package managers, or dependencies.
 - **Small trusted core:** the CLI uses no third-party Rust crate dependencies.
 
 ## Current capabilities
@@ -162,6 +194,32 @@ Integration files are structurally validated against documented conventions.
 Runtime behavior in every third-party client is not claimed. See the
 [integration guide](docs/AGENT_INTEGRATIONS.md) for global installation paths,
 Claude's namespaced command, Hermes usage, and platform-specific boundaries.
+
+## Frequently asked questions
+
+### Can Apollyon scan manually written projects?
+
+Yes. Apollyon is provenance-neutral: it scans ordinary human-written source and
+AI-generated source with the same bounded rules. No coding agent is required.
+
+### Does Apollyon execute the project it scans?
+
+No. Static scanning does not run target builds, tests, hooks, package managers,
+or dependencies. Treat any separately authorized dynamic verification as a
+different, isolated workflow.
+
+### Does it replace CodeQL, Semgrep, or expert security review?
+
+No. Apollyon is a narrow pre-alpha lexical scanner and should complement mature
+analysis tools and human review. Its current advantage is an explicit,
+machine-readable account of scan coverage and incomplete work.
+
+### Can coding agents use it?
+
+Yes. The CLI works from any terminal-capable environment, and the repository
+includes documented workflows for Codex, Claude Code, Cursor, Gemini CLI,
+Hermes, Copilot, OpenCode, and Aider. See the
+[coding-agent integration guide](docs/AGENT_INTEGRATIONS.md).
 
 ## Evidence pipeline
 

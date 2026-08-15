@@ -9,6 +9,8 @@ versioning after its first tagged release.
 
 - Made creator attribution prominent in the README and public repository
   metadata.
+- Improved GitHub discovery and onboarding with clearer product copy, direct
+  release downloads, user-focused FAQs, and feedback calls to action.
 
 ## [0.2.0] - 2026-08-15
 
