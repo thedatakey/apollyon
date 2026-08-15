@@ -16,6 +16,8 @@ const MAX_DISCOVERED_ENTRIES: usize = 100_000;
 const MAX_FINDINGS: usize = 10_000;
 const MAX_ERRORS: usize = 1_000;
 const MAX_SNIPPET_CHARS: usize = 180;
+const CSHARP_FORMATTER_PROXIMITY_LINES: usize = 20;
+const SCOPE_NOTE: &str = "Findings reflect a fixed set of bounded lexical rules only. Zero findings is not a security guarantee and does not imply the scanned code is safe.";
 const DEFAULT_IGNORED_DIRECTORIES: &[&str] = &[
     ".git",
     ".hg",
@@ -747,7 +749,7 @@ fn scan_file(
     };
     let mut findings = Vec::new();
     let mut lex_state = LexState::default();
-    let mut csharp_unsafe_formatter_seen = false;
+    let mut csharp_unsafe_formatter_seen_at: Option<usize> = None;
     for (index, original_line) in contents.lines().enumerate() {
         let code = sanitize_code_line(original_line, language, &mut lex_state);
         if language == Language::CSharp
@@ -759,7 +761,7 @@ fn scan_file(
             .iter()
             .any(|constructor| code.contains(constructor))
         {
-            csharp_unsafe_formatter_seen = true;
+            csharp_unsafe_formatter_seen_at = Some(index);
         }
         let mut candidates = Vec::with_capacity(4);
         if language == Language::CFamily
@@ -827,7 +829,11 @@ fn scan_file(
             candidates.push(rule_info("APO005"));
         }
         let unsafe_deserialization = match language {
-            Language::CSharp => csharp_unsafe_formatter_seen && contains_call(&code, "Deserialize"),
+            Language::CSharp => {
+                csharp_unsafe_formatter_seen_at.is_some_and(|seen_at| {
+                    index.saturating_sub(seen_at) <= CSHARP_FORMATTER_PROXIMITY_LINES
+                }) && contains_call(&code, "Deserialize")
+            }
             Language::Jvm => contains_call(&code, "readObject"),
             Language::Php => contains_call(&code, "unserialize"),
             Language::Python => {
@@ -1194,7 +1200,9 @@ fn render_json(report: &ScanReport) -> String {
     let mut output = String::from("{\"schema\":\"apollyon.findings/v1\",\"tool\":{");
     output.push_str("\"name\":\"apollyon\",\"version\":");
     json_string(&mut output, VERSION);
-    output.push_str("},\"root\":");
+    output.push_str("},\"scope\":");
+    json_string(&mut output, SCOPE_NOTE);
+    output.push_str(",\"root\":");
     json_string(&mut output, &report.root);
     let _ = write!(
         output,
@@ -1260,7 +1268,9 @@ fn render_sarif(report: &ScanReport) -> String {
         json_string(&mut output, rule.languages);
         output.push_str("}}");
     }
-    output.push_str("]}},\"invocations\":[{\"executionSuccessful\":");
+    output.push_str("],\"properties\":{\"scope\":");
+    json_string(&mut output, SCOPE_NOTE);
+    output.push_str("}}},\"invocations\":[{\"executionSuccessful\":");
     output.push_str(if report.complete { "true" } else { "false" });
     output.push_str(",\"toolExecutionNotifications\":[");
     for (index, error) in report.errors.iter().enumerate() {
@@ -1543,6 +1553,26 @@ mod tests {
             .rule_id,
             "APO006"
         );
+    }
+
+    #[test]
+    fn csharp_unsafe_formatter_flags_deserialize_within_proximity_window() {
+        let source = format!(
+            "var formatter = new BinaryFormatter();\n{}formatter.Deserialize(stream);",
+            "// unrelated line\n".repeat(CSHARP_FORMATTER_PROXIMITY_LINES - 1)
+        );
+        let result = findings("boundary.cs", &source);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].rule_id, "APO006");
+    }
+
+    #[test]
+    fn csharp_unsafe_formatter_does_not_flag_unrelated_far_deserialize_call() {
+        let source = format!(
+            "var formatter = new BinaryFormatter();\n{}otherObject.Deserialize(stream);",
+            "// unrelated line\n".repeat(CSHARP_FORMATTER_PROXIMITY_LINES + 1)
+        );
+        assert!(findings("unrelated.cs", &source).is_empty());
     }
 
     #[test]
