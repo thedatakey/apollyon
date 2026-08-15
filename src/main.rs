@@ -649,8 +649,9 @@ fn contains_any_call(code: &str, functions: &[&str]) -> bool {
 fn contains_ruby_command(code: &str, name: &str) -> bool {
     for (start, _) in code.match_indices(name) {
         let end = start + name.len();
+        let previous_character = code[..start].chars().next_back();
         let left_ok = !matches!(
-            code[..start].chars().next_back(),
+            previous_character,
             Some(character) if is_identifier_character(character)
         );
         let right_ok = !matches!(
@@ -661,11 +662,17 @@ fn contains_ruby_command(code: &str, name: &str) -> bool {
             continue;
         }
 
+        // A Ruby symbol literal (`:name`) has no whitespace between the
+        // colon and the name; a hash-literal key (`name: value`) always
+        // does. Checking the immediately preceding character (rather than
+        // trimming whitespace first) tells the two apart, so a dangerous
+        // call used as a hash value (e.g. `{ run: spawn(cmd) }`) is still
+        // reported instead of being mistaken for a symbol reference.
         let statement_prefix = code[..start]
             .rsplit_once(';')
             .map_or(&code[..start], |(_, suffix)| suffix)
             .trim_start();
-        if statement_prefix.starts_with("def ") || code[..start].trim_end().ends_with(':') {
+        if statement_prefix.starts_with("def ") || previous_character == Some(':') {
             continue;
         }
 
@@ -1622,6 +1629,27 @@ Process.Start(command);"#,
             "def eval(input); end\ndef self.system(command); end\ndef Marshal.load(value); end"
         )
         .is_empty());
+    }
+
+    #[test]
+    fn detects_ruby_command_calls_used_as_hash_values() {
+        let result = findings(
+            "options.rb",
+            "h1 = { block: class_eval(code) }\nh2 = { payload: Marshal.load(data) }\nh3 = { run: spawn(cmd) }",
+        );
+        assert_eq!(
+            result
+                .iter()
+                .map(|finding| finding.rule_id)
+                .collect::<Vec<_>>(),
+            vec!["APO004", "APO006", "APO005"]
+        );
+    }
+
+    #[test]
+    fn does_not_flag_ruby_symbol_literals_as_command_calls() {
+        assert!(findings("symbols.rb", "send(:system, cmd)").is_empty());
+        assert!(findings("symbols.rb", "callbacks = [:eval, :system]").is_empty());
     }
 
     #[test]

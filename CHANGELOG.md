@@ -17,6 +17,17 @@ versioning after its first tagged release.
   formatter constructor as unbounded evidence for the rest of the file; a
   `Deserialize` call now only counts as a candidate within
   `CSHARP_FORMATTER_PROXIMITY_LINES` (20) lines of the constructor.
+- Ruby command detection (`APO004`, `APO005`, `APO006`) no longer misses a
+  dangerous call used as a hash value, such as `{ run: spawn(cmd) }`. The
+  symbol-literal exclusion previously matched any colon before the name,
+  including a hash-literal key's colon, silently hiding real findings.
+- README's "See it work" example matched the tool's actual current output
+  (a second `APO006` candidate in the fixture was missing from the shown
+  output while already counted in its own summary line).
+- The `scope` output field is now referenced by the agent-facing docs and
+  skill instructions (`docs/AGENT_INTEGRATIONS.md`,
+  `.agents/skills/apollyon-scan/SKILL.md`, and the SARIF section of
+  `docs/FINDINGS_SCHEMA.md`) that previously omitted it.
 
 ### Changed
 
