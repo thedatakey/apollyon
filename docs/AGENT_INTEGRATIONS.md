@@ -73,9 +73,10 @@ apollyon scan . --format json
 ```
 
 The default exit code remains `0` even when candidates exist unless `--fail-on`
-is configured. Consumers must parse `findings`, `summary.complete`, and `errors`;
-they must not equate exit `0` with a clean project. Exit `3` is explicitly
-incomplete.
+is configured. Consumers must parse `findings`, `summary.complete`, `scope`,
+and `errors`; they must not equate exit `0`, or an empty `findings` array,
+with a clean project. Exit `3` is explicitly incomplete. Always surface
+`scope` alongside a summarized result instead of dropping it.
 
 For code-scanning ingestion:
 

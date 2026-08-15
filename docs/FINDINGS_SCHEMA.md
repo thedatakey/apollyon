@@ -66,3 +66,5 @@ for scan errors. Source snippets remain opt-in. Use `--output` for ingestion
 files and parse the same process exit codes documented in the README. SARIF
 paths are UTF-8 percent-encoded URI references; JSON paths remain raw relative
 paths. The output path must be new because Apollyon never overwrites reports.
+The same scope reminder from JSON's `scope` field is present as
+`runs[].tool.driver.properties.scope`.

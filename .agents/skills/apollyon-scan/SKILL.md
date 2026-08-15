@@ -24,9 +24,9 @@ project is safe from an empty, failed, partial, or unsupported scan.
 6. Keep snippets disabled. Add `--include-snippets` only when the user explicitly
    requests evidence in a trusted local output.
 7. Parse the structured report. Preserve each rule ID, severity, relative path,
-   and line; also report `supported_files`, `scanned_files`, `skipped_files`,
-   `skipped_symlinks`, `excluded_files`, `excluded_directories`, completeness,
-   and every error.
+   and line; also report `scope`, `supported_files`, `scanned_files`,
+   `skipped_files`, `skipped_symlinks`, `excluded_files`,
+   `excluded_directories`, completeness, and every error.
 
 ## Interpret
 
@@ -37,6 +37,10 @@ project is safe from an empty, failed, partial, or unsupported scan.
 - Treat findings as review candidates. Validate reachability and attacker control
   before describing security impact.
 - State the scanned language/file coverage and relevant exclusions.
+- Always restate the `scope` field alongside any summarized result. Never
+  compress zero findings into "the code is secure" or an equivalent claim —
+  the rule set is narrow and bounded, and an empty `findings` array only
+  means those specific rules found nothing.
 
 ## Report or remediate
 
