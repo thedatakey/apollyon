@@ -7,6 +7,10 @@
 <p align="center"><strong>Evidence before verdicts.</strong></p>
 
 <p align="center">
+  Created by <a href="https://github.com/thedatakey"><strong>Tom Koentjes</strong> (@thedatakey)</a>.
+</p>
+
+<p align="center">
   <a href="https://github.com/thedatakey/apollyon/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/thedatakey/apollyon/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/thedatakey/apollyon/releases"><img alt="Release" src="https://img.shields.io/github/v/release/thedatakey/apollyon?include_prereleases&sort=semver&label=release"></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-22d3ee"></a>
@@ -229,5 +233,6 @@ fixtures, benchmarks, and independent validation exist.
 
 ## Author and license
 
-Apollyon is created by **Tom Koentjes** and released under the MIT License.
-See [LICENSE](LICENSE).
+Apollyon was created and is maintained by
+**[Tom Koentjes](https://github.com/thedatakey)** (`@thedatakey`). Copyright
+© 2026 Tom Koentjes. Released under the MIT License; see [LICENSE](LICENSE).

@@ -5,6 +5,11 @@ versioning after its first tagged release.
 
 ## [Unreleased]
 
+### Changed
+
+- Made creator attribution prominent in the README and public repository
+  metadata.
+
 ## [0.2.0] - 2026-08-15
 
 ### Added
