@@ -5,6 +5,19 @@ versioning after its first tagged release.
 
 ## [Unreleased]
 
+### Added
+
+- `scope` field in JSON and SARIF (`tool.driver.properties.scope`) output
+  carrying a fixed reminder that findings reflect a bounded lexical rule
+  set and that zero findings is not a security guarantee.
+
+### Fixed
+
+- `APO006` (unsafe deserialization) for C# no longer treats an unsafe
+  formatter constructor as unbounded evidence for the rest of the file; a
+  `Deserialize` call now only counts as a candidate within
+  `CSHARP_FORMATTER_PROXIMITY_LINES` (20) lines of the constructor.
+
 ### Changed
 
 - Made creator attribution prominent in the README and public repository

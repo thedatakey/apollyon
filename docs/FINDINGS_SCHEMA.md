@@ -10,6 +10,7 @@ code and `summary.complete`.
 {
   "schema": "apollyon.findings/v1",
   "tool": { "name": "apollyon", "version": "0.2.0" },
+  "scope": "Findings reflect a fixed set of bounded lexical rules only. Zero findings is not a security guarantee and does not imply the scanned code is safe.",
   "root": "project",
   "summary": {
     "supported_files": 4,
@@ -36,6 +37,11 @@ code and `summary.complete`.
 }
 ```
 
+- `scope` is a fixed, machine-readable reminder that findings come from a
+  narrow, bounded rule set and that zero findings is not a security
+  guarantee. Automation and coding agents should surface this alongside any
+  summarized result rather than compressing an empty `findings` array into a
+  "code is secure" claim.
 - `root` is a privacy-preserving scan-root label, not an absolute filesystem
   path.
 - Finding paths are slash-normalized and relative to the scan root.
