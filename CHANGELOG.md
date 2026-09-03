@@ -7,6 +7,10 @@ versioning after its first tagged release.
 
 ### Added
 
+- Nine exact CLI output snapshots for text, JSON, and SARIF, covering default
+  scanning, exclusions, and explicitly enabled snippets; integration checks
+  for exit codes and library/CLI rendering parity.
+- Architecture documentation and a phase-by-phase upgrade implementation plan.
 - `scope` field in JSON and SARIF (`tool.driver.properties.scope`) output
   carrying a fixed reminder that findings reflect a bounded lexical rule
   set and that zero findings is not a security guarantee.
@@ -20,6 +24,10 @@ versioning after its first tagged release.
 
 ### Changed
 
+- Internal restructure into a library crate; no behavior change. The binary
+  delegates to the library, with cohesive CLI, lexer, scanner, report,
+  rule-family, display, and rendering modules. All 35 original tests are
+  preserved as module unit tests; no runtime dependencies were added.
 - Made creator attribution prominent in the README and public repository
   metadata.
 - Improved GitHub discovery and onboarding with clearer product copy, direct

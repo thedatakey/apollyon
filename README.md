@@ -254,6 +254,12 @@ running target builds, tests, hooks, package managers, or dependencies.
 
 ## Development and contributing
 
+The scanner is now a library with a thin CLI entry point. See
+[the architecture](docs/ARCHITECTURE.md) for module responsibilities and the
+scan pipeline, and [the phased upgrade plan](docs/UPGRADE_PLAN.md) for the
+next development checkpoints. Phase 0 preserves the existing CLI and findings
+v1 output; committed golden tests compare exact output bytes.
+
 ```sh
 cargo fmt --all --check
 cargo clippy --locked --all-targets --all-features -- -D warnings
