@@ -30,7 +30,7 @@ cargo fmt --all --check
 cargo clippy --locked --all-targets --all-features -- -D warnings
 cargo test --locked --all-targets --all-features
 cargo build --release --locked
-cargo +1.74.0 check --locked
+cargo +1.85.0 check --locked
 python3 scripts/validate_agents.py
 python3 scripts/validate_integrations.py
 python3 scripts/validate_outputs.py target/debug/apollyon

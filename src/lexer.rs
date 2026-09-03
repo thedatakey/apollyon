@@ -352,12 +352,12 @@ pub(crate) fn lex_line(line: &str, language: Language, state: &mut LexState) -> 
         if *kind < 2 {
             visible.push(*ch);
         } else {
-            visible.extend(std::iter::repeat(' ').take(ch.len_utf8()));
+            visible.extend(std::iter::repeat_n(' ', ch.len_utf8()));
         }
         if *kind == 0 {
             masked.push(*ch);
         } else {
-            masked.extend(std::iter::repeat(' ').take(ch.len_utf8()));
+            masked.extend(std::iter::repeat_n(' ', ch.len_utf8()));
         }
     }
     let mut literals = Vec::new();

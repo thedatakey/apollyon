@@ -103,3 +103,34 @@ filtering, preserves sensitive-line redaction, and accounts for selection gaps.
 See [CONFIG.md](CONFIG.md), [RULES.md](RULES.md), and the additive findings-v1
 fields in [FINDINGS_SCHEMA.md](FINDINGS_SCHEMA.md). Phase 0 paragraphs above
 record the original extraction; the current registry contains twelve rules.
+
+## Phase 2 semantic layer
+
+`ast.rs` selects one of fourteen exactly pinned grammar variants for the thirteen
+source families (TypeScript/TSX have distinct variants), validates lexical
+candidates against call, assignment/configuration, or unsafe AST nodes, and
+collects same-file function/call boundaries. All supported languages have a
+grammar. Parse/ABI/time/node/inspection-limit failure uses lexical fallback and
+increments coverage. Input remains capped at 2 MiB; parser timeout is 2 seconds,
+AST nodes at 1,000,000, and cumulative inspected node text at 16 MiB.
+
+`taint/mod.rs` models intra-function sources, assignments, integer casts,
+shell quoting for command sinks, parameterized-query behavior through APO011,
+and explicit single-line allowlist-return guards. Sources include HTTP/CLI/env/
+stdin, file reads, and deserialization tokens. It upgrades modeled eval/exec,
+OS command, unsafe deserialization, dynamic SQL, and variable-path sinks to
+`tainted` with at most ten ordered trace steps. Unknown operations retain taint.
+
+`--interprocedural` opts into one same-file direct-call boundary with positional
+argument-to-parameter mapping. It does not follow methods/dynamic calls, imports,
+recursion, callbacks, fields, or more than one call. Findings v2 records engine,
+confidence, trace, and coverage; lexical fallback never emits `tainted`.
+
+Pinned dependencies are listed in `Cargo.toml` and resolved by `Cargo.lock`. The
+core parser plus one maintained grammar per supported language is the minimum
+set needed for full advertised grammar coverage; no optional Wasm/runtime parser
+or serialization dependency is enabled directly. `tree-sitter-language` is
+pinned to 0.1.5 because 0.1.8 raised its Rust requirement after this dependency
+set was selected. The verified minimum Rust version is 1.85; this is the first
+stable release with edition 2024 support needed by current locked transitive
+dependencies.

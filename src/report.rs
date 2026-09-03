@@ -3,6 +3,39 @@
 use crate::rules::Severity;
 use crate::scanner::MAX_ERRORS;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Engine {
+    Lexical,
+    Ast,
+}
+impl Engine {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Lexical => "lexical",
+            Self::Ast => "ast",
+        }
+    }
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Confidence {
+    Candidate,
+    Tainted,
+}
+impl Confidence {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Candidate => "candidate",
+            Self::Tainted => "tainted",
+        }
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TraceStep {
+    pub path: String,
+    pub line: usize,
+    pub kind: String,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct Finding {
     pub rule_id: &'static str,
@@ -11,6 +44,9 @@ pub struct Finding {
     pub path: String,
     pub line: usize,
     pub snippet: Option<String>,
+    pub engine: Engine,
+    pub confidence: Confidence,
+    pub trace: Vec<TraceStep>,
     pub fingerprint: String,
 }
 
@@ -35,6 +71,9 @@ pub struct ScanReport {
     pub unselected_files: usize,
     pub missing_selected_files: usize,
     pub unsupported_selected_files: usize,
+    pub ast_files: usize,
+    pub lexical_files: usize,
+    pub parse_fallback_files: usize,
 }
 
 impl ScanReport {

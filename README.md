@@ -15,7 +15,7 @@
   <a href="https://github.com/thedatakey/apollyon/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/thedatakey/apollyon/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/thedatakey/apollyon/releases"><img alt="Release" src="https://img.shields.io/github/v/release/thedatakey/apollyon?include_prereleases&sort=semver&label=release"></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-22d3ee"></a>
-  <img alt="Rust 1.74 or newer" src="https://img.shields.io/badge/rust-1.74%2B-f97316">
+  <img alt="Rust 1.85 or newer" src="https://img.shields.io/badge/rust-1.85%2B-f97316">
   <img alt="Public pre-alpha" src="https://img.shields.io/badge/status-public_pre--alpha-f59e0b">
 </p>
 
@@ -39,18 +39,18 @@ source trees, whether the code was written by a person or generated with AI.
 
 Every report records supported, scanned, skipped, and excluded counts, along
 with errors and whether the scan completed. Use terminal text for local review,
-versioned JSON for coding agents and automation, or SARIF 2.1.0 for CI and
+versioned JSON v2 with engine, confidence, and source-to-sink traces for coding agents and automation, or SARIF 2.1.0 for CI and
 GitHub code scanning.
 
 **Status: public pre-alpha v0.2.0.** Apollyon currently implements twelve bounded
-lexical rules. Findings require human validation; a complete scan is not proof
+review rules with AST validation and bounded taint traces. Findings require human validation; a complete scan is not proof
 that a project is secure.
 
 ## Quick start
 
 ### Install with Cargo
 
-Requires Rust 1.74 or newer:
+Requires Rust 1.85 or newer:
 
 ```sh
 cargo install --locked --git https://github.com/thedatakey/apollyon \
@@ -136,7 +136,8 @@ incomplete."
   terminal-capable environments.
 - **No target execution:** scans source without running project code, builds,
   hooks, package managers, or dependencies.
-- **Small trusted core:** the CLI uses no third-party Rust crate dependencies.
+- **Pinned parser stack:** tree-sitter and all language grammars use exact
+  versions recorded in `Cargo.lock`.
 
 ## Current capabilities
 
@@ -182,7 +183,7 @@ Every hidden candidate remains counted as suppressed, disabled, or baselined.
 | Format | Intended use |
 | --- | --- |
 | `text` | Human terminal review |
-| `json` | Coding agents and custom automation (`apollyon.findings/v1`) |
+| `json` | Coding agents and custom automation (`apollyon.findings/v2`) |
 | `sarif` | SARIF 2.1.0 consumers and code-scanning ingestion |
 
 | Exit | Meaning |
@@ -228,7 +229,7 @@ different, isolated workflow.
 
 ### Does it replace CodeQL, Semgrep, or expert security review?
 
-No. Apollyon is a narrow pre-alpha lexical scanner and should complement mature
+No. Apollyon is a bounded pre-alpha AST-assisted scanner and should complement mature
 analysis tools and human review. Its current advantage is an explicit,
 machine-readable account of scan coverage and incomplete work.
 
@@ -255,9 +256,7 @@ or authorization to execute code.
 
 ## Limits and scientific boundary
 
-Apollyon is a lexical scanner, not a parser or whole-program analyzer. Generated
-code, macro expansion, aliases, string interpolation, dynamic imports, complex
-language grammar, and data flow are outside the current rule guarantees. It has
+Apollyon uses tree-sitter parsing and bounded same-file taint models; it is not a whole-program analyzer. Macro expansion, dynamic dispatch/imports, reflection, complex aliasing, framework behavior, and whole-program data flow remain outside current guarantees. Files that fail to parse use an explicitly counted lexical fallback. It has
 no representative benchmark yet, so no accuracy or detection-rate claim is made.
 
 For Turing-complete programs, Rice's theorem rules out a general decision
@@ -283,7 +282,7 @@ cargo fmt --all --check
 cargo clippy --locked --all-targets --all-features -- -D warnings
 cargo test --locked --all-targets --all-features
 cargo build --release --locked
-cargo +1.74.0 check --locked
+cargo +1.85.0 check --locked
 python3 scripts/validate_agents.py
 python3 scripts/validate_integrations.py
 python3 scripts/validate_outputs.py target/debug/apollyon
@@ -301,7 +300,7 @@ Maintainer release steps are documented in [docs/RELEASING.md](docs/RELEASING.md
 
 ## Roadmap
 
-- Parser-backed rules and richer language-specific fixtures
+- Broader AST queries and framework-specific taint models
 - Broader Git ignore syntax and richer changed-file analysis
 - Signed/notarized binaries and package-manager distribution
 - Reachability analysis and safe fuzz-harness adapters

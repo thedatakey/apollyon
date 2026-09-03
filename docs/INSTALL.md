@@ -1,7 +1,7 @@
 # Install Apollyon
 
 Apollyon v0.2.0 is a public pre-alpha. Choose a checksummed release archive or
-install the exact tagged source with Rust 1.74 or newer.
+install the exact tagged source with Rust 1.85 or newer.
 
 ## Release archives
 

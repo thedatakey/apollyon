@@ -57,7 +57,7 @@ hook, or package-manager command ran on the host.
 ## Limits and next checkpoint
 
 Compatibility evidence covers the preserved tests and checked-in fixtures,
-not every possible input. Windows/macOS execution and the Rust 1.74 minimum
+not every possible input. Windows/macOS execution and the then-current Rust 1.74 minimum
 version check were not run locally; the existing CI jobs cover those platforms
 and the minimum version. No new language features or dependencies were added.
 

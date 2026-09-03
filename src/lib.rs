@@ -1,6 +1,7 @@
 //! Apollyon reports bounded review candidates, never proof of whole-program security.
 //! The library API is pre-alpha; the existing CLI and findings v1 contract are preserved.
 
+mod ast;
 mod baseline;
 mod cli;
 mod config;
@@ -14,10 +15,11 @@ mod rules;
 mod scanner;
 mod selection;
 mod suppression;
+mod taint;
 
 pub use config::ScanSettings;
 pub use render::{render_json, render_rules, render_sarif, render_text};
-pub use report::{Finding, ScanReport};
+pub use report::{Confidence, Engine, Finding, ScanReport, TraceStep};
 pub use rules::Severity;
 pub use scanner::{scan_path, scan_with_settings};
 
@@ -103,6 +105,7 @@ fn prepare_scan(options: &cli::ScanOptions) -> Result<PreparedScan, String> {
         settings.excludes = options.excludes.clone();
     }
     settings.no_gitignore = options.controls.no_gitignore;
+    settings.interprocedural = options.controls.interprocedural;
     for id in &options.controls.enable_rules {
         settings.disabled_rules.remove(id);
         if let Some(ids) = &mut settings.enabled_rules {

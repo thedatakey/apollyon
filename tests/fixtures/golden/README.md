@@ -28,3 +28,9 @@ finding fingerprints, and adoption/selection counters. Before updating, a
 structural comparison removed only these new fields and the six new registry
 entries and confirmed all previous JSON/SARIF content was identical. Text
 outputs retain the original bytes followed by the new accounting line.
+
+Phase 2 deliberately moves the structured snapshots to findings v2 and adds
+the required engine, confidence, trace, and parser-coverage fields. A
+structural comparison removed only those documented additions (and normalized
+the text engine labels/coverage line) and confirmed that Phase 1 content stayed
+identical.

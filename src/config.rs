@@ -17,12 +17,13 @@ pub struct ScanSettings {
     pub disabled_rules: BTreeSet<String>,
     pub severity: BTreeMap<String, Severity>,
     pub selected_files: Option<BTreeSet<String>>,
+    pub interprocedural: bool,
 }
 impl ScanSettings {
     pub(crate) fn enabled(&self, id: &str) -> bool {
         self.enabled_rules
             .as_ref()
-            .map_or(true, |ids| ids.contains(id))
+            .is_none_or(|ids| ids.contains(id))
             && !self.disabled_rules.contains(id)
     }
 }

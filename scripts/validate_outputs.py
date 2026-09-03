@@ -44,13 +44,17 @@ def main() -> int:
         print(json_run.stderr, file=sys.stderr)
         return 1
     report = json.loads(json_run.stdout)
-    assert report["schema"] == "apollyon.findings/v1"
+    assert report["schema"] == "apollyon.findings/v2"
     assert report["summary"]["complete"] is True
     assert report["summary"]["scanned_files"] == 4
     assert report["summary"]["excluded_files"] == 0
     assert report["summary"]["excluded_directories"] >= 2
     assert {finding["rule_id"] for finding in report["findings"]} == EXPECTED_RULES
     assert all(finding["snippet"] is None for finding in report["findings"])
+    assert all(finding["engine"] in {"ast", "lexical"} for finding in report["findings"])
+    assert all(finding["confidence"] in {"candidate", "tainted"} for finding in report["findings"])
+    assert all(isinstance(finding["trace"], list) for finding in report["findings"])
+    assert report["summary"]["ast_files"] + report["summary"]["lexical_files"] == report["summary"]["scanned_files"]
     assert all(not Path(finding["path"]).is_absolute() for finding in report["findings"])
 
     threshold_run = invoke(

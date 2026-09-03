@@ -4,7 +4,7 @@ use crate::{
     config::ScanSettings,
     display::safe_snippet,
     lexer::{language_for, lex_line, LexState},
-    report::{Finding, ScanReport},
+    report::{Confidence, Engine, Finding, ScanReport},
     rules::{adoption, deserialization, exec, memory},
 };
 use std::{
@@ -58,6 +58,7 @@ pub(crate) fn scan_file(
 
 #[derive(Default)]
 struct FileScan {
+    parsed: bool,
     findings: Vec<Finding>,
     truncated: bool,
     complete: bool,
@@ -79,7 +80,21 @@ fn scan_file_settings(
             ..Default::default()
         };
     };
+    let ast = crate::ast::analyze(path, contents, language).ok();
+    let traces = ast
+        .as_ref()
+        .map(|analysis| {
+            crate::taint::analyze(
+                display_path,
+                contents,
+                language,
+                analysis,
+                settings.interprocedural,
+            )
+        })
+        .unwrap_or_default();
     let mut result = FileScan {
+        parsed: ast.is_some(),
         complete: true,
         ..Default::default()
     };
@@ -101,6 +116,12 @@ fn scan_file_settings(
         adoption::match_rules(&view, language, &mut candidates);
         let sensitive_line = candidates.iter().any(|r| r.id == "APO007");
         for rule in candidates {
+            if ast
+                .as_ref()
+                .is_some_and(|analysis| !analysis.allows(index + 1, rule.id))
+            {
+                continue;
+            }
             if result.total == finding_budget {
                 result.truncated = true;
                 return result;
@@ -114,6 +135,10 @@ fn scan_file_settings(
                 result.suppressed += 1;
                 continue;
             }
+            let trace = traces
+                .get(&(index + 1, rule.id))
+                .cloned()
+                .unwrap_or_default();
             result.findings.push(Finding {
                 rule_id: rule.id,
                 severity: settings
@@ -127,6 +152,17 @@ fn scan_file_settings(
                 snippet: (settings.include_snippets && !sensitive_line)
                     .then(|| safe_snippet(original_line)),
                 fingerprint: crate::fingerprint::finding(rule.id, display_path, original_line),
+                engine: if ast.is_some() {
+                    Engine::Ast
+                } else {
+                    Engine::Lexical
+                },
+                confidence: if trace.is_empty() {
+                    Confidence::Candidate
+                } else {
+                    Confidence::Tainted
+                },
+                trace,
             });
         }
     }
@@ -471,6 +507,12 @@ pub fn scan_with_settings(root: &Path, settings: &ScanSettings) -> ScanReport {
         report.scanned_files += 1;
         let remaining = MAX_FINDINGS - report.total_findings;
         let result = scan_file_settings(&path, &display_path, &contents, settings, remaining);
+        if result.parsed {
+            report.ast_files += 1;
+        } else {
+            report.lexical_files += 1;
+            report.parse_fallback_files += 1;
+        }
         report.total_findings += result.total;
         report.suppressed_findings += result.suppressed;
         report.disabled_findings += result.disabled;
