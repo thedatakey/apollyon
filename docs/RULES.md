@@ -1,9 +1,13 @@
-# Lexical rule boundaries
+# Rule boundaries
 
-All twelve rules are review candidates. Token/call matching has no AST,
-dataflow, exploitability, or framework guarantee. Comments and ordinary strings
-are removed from the code view; the new rules also consume lexer-classified
-literal metadata. Complex interpolation and grammar remain outside guarantees.
+All twelve rules produce review candidates. A successful tree-sitter parse
+filters candidates to relevant syntax nodes; parse failures use an explicitly
+counted lexical fallback. Bounded taint analysis can raise confidence to
+`tainted` for APO004, APO005, APO006, APO011, and APO012. Neither status proves
+exploitability or framework behavior. Comments and ordinary strings are removed
+from the code view; rules APO007–APO012 also consume lexer-classified literal
+metadata. Complex interpolation and full program semantics remain outside the
+guarantees.
 
 | Rule | Severity | Implemented Phase 1 boundary |
 | --- | --- | --- |
@@ -15,8 +19,10 @@ literal metadata. Complex interpolation and grammar remain outside guarantees.
 | APO012 | medium | Filesystem-call first argument containing a variable or expression rather than a fixed literal. This is a sink review boundary, not a traversal verdict. |
 
 The full Phase 1 token lists live in `src/rules/patterns.rs`. Existing APO001–006
-retain their original matcher behavior, including the C# 20-line formatter
-window. Run `apollyon rules` for descriptions and language scope.
+retain their original lexical matcher behavior before AST validation, including
+the C# 20-line formatter window. Run `apollyon rules` for descriptions and
+language scope. See [the findings schema](FINDINGS_SCHEMA.md) for engine,
+confidence, trace, fallback, and analysis-bound contracts.
 
 Secret evidence is never included for a line matched by APO007, even with
 `--include-snippets`, and even if that rule is disabled or suppressed. Other

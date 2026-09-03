@@ -53,6 +53,8 @@ rule/control documentation before the phase checkpoint.
 
 ## Phase 2 — AST and taint
 
+Implemented; see [the phase report](PHASE_2_REPORT.md) and [FINDINGS_SCHEMA.md](FINDINGS_SCHEMA.md).
+
 Add exactly pinned tree-sitter versions and grammars in the requested order:
 Python, JS/TS, Go, C/C++, then the remaining languages. Define a per-language
 coverage matrix rather than implying all languages gain semantic support at

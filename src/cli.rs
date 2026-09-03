@@ -36,6 +36,7 @@ pub(crate) struct Controls {
     pub enable_rules: Vec<String>,
     pub disable_rules: Vec<String>,
     pub severities: Vec<(String, Severity)>,
+    pub interprocedural: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -48,7 +49,7 @@ pub(crate) enum Command {
 
 pub(crate) fn usage() -> &'static str {
     "Apollyon — bounded, evidence-first source assessment\n\n\
-Usage:\n  apollyon scan <path> [--format text|json|sarif] [--output <file>] [--exclude <path>]...\n                       [--include-snippets] [--fail-on info|medium|high|never]\n                       [--baseline <file>] [--write-baseline <file>]\n                       [--diff <git-ref> | --changed-files <file>] [--no-gitignore]\n                       [--enable-rule <id>] [--disable-rule <id>] [--severity <id>=<level>]\n  apollyon rules\n  apollyon --version\n  apollyon --help\n\n\
+Usage:\n  apollyon scan <path> [--format text|json|sarif] [--output <file>] [--exclude <path>]...\n                       [--include-snippets] [--fail-on info|medium|high|never]\n                       [--baseline <file>] [--write-baseline <file>]\n                       [--diff <git-ref> | --changed-files <file>] [--no-gitignore]\n                       [--enable-rule <id>] [--disable-rule <id>] [--severity <id>=<level>] [--interprocedural]\n  apollyon rules\n  apollyon --version\n  apollyon --help\n\n\
 Exit codes: 0 complete, 1 finding met --fail-on, 2 invocation/output error, 3 incomplete scan."
 }
 
@@ -108,6 +109,10 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Command, String> {
                     _ => unreachable!(),
                 }
                 index += 2;
+            }
+            "--interprocedural" => {
+                options.controls.interprocedural = true;
+                index += 1;
             }
             "--no-gitignore" => {
                 options.controls.no_gitignore = true;

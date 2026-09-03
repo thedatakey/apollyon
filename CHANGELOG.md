@@ -7,6 +7,13 @@ versioning after its first tagged release.
 
 ### Added
 
+- Phase 2 tree-sitter parsing with exactly pinned grammars for all 13 supported
+  languages, AST validation for lexical candidates, and explicitly counted
+  lexical fallback.
+- Bounded intraprocedural taint evidence and opt-in one-boundary same-file
+  interprocedural analysis with ordered source-to-sink traces.
+- Findings schema v2 with required `engine`, `confidence`, and `trace` fields.
+
 - Phase 1 lexical rules APO007–APO012 for secret, crypto, randomness, TLS, SQL,
   and filesystem review boundaries, with positive/negative fixtures.
 - Same-line comment suppressions, SHA-256 baselines, changed-file lists and
@@ -30,6 +37,10 @@ versioning after its first tagged release.
   `CSHARP_FORMATTER_PROXIMITY_LINES` (20) lines of the constructor.
 
 ### Changed
+
+- Minimum supported Rust version is 1.85 after adding the parser dependency set.
+- Phase 2 golden snapshots intentionally move to findings v2 and add engine,
+  confidence, trace, and parser-coverage fields; Phase 1 content is unchanged.
 
 - Phase 1 golden snapshots intentionally add the new rule registry, stable
   finding fingerprints, and control/selection counters. Existing manual-project

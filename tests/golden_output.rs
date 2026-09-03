@@ -1,4 +1,4 @@
-//! Exact CLI snapshots based on d1dc52e, with reviewed Phase 1 additions.
+//! Exact CLI snapshots based on d1dc52e, with reviewed Phase 1 and 2 additions.
 
 use std::{path::Path, process::Command};
 

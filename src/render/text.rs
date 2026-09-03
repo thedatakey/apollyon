@@ -26,13 +26,24 @@ pub fn render_text(report: &ScanReport) -> String {
     for finding in &report.findings {
         let _ = writeln!(
             output,
-            "[{}] {} {}:{}\n  {}",
+            "[{}] {} {}:{} ({}/{})\n  {}",
             finding.severity.as_str().to_uppercase(),
             finding.rule_id,
             safe_terminal(&finding.path),
             finding.line,
+            finding.engine.as_str(),
+            finding.confidence.as_str(),
             finding.message
         );
+        for step in &finding.trace {
+            let _ = writeln!(
+                output,
+                "  trace: {}:{} ({})",
+                safe_terminal(&step.path),
+                step.line,
+                step.kind
+            );
+        }
         if let Some(snippet) = &finding.snippet {
             let _ = writeln!(output, "  evidence: {snippet}");
         }
@@ -58,7 +69,7 @@ pub fn render_text(report: &ScanReport) -> String {
         report.excluded_directories,
         report.complete
     );
-    let _ = writeln!(output, "{} new; {} baselined; {} suppressed; {} disabled; {} total candidate(s); {} unselected file(s); {} missing selected path(s); {} unsupported selected path(s).", report.findings.len(), report.baselined_findings, report.suppressed_findings, report.disabled_findings, report.total_findings, report.unselected_files, report.missing_selected_files, report.unsupported_selected_files);
+    let _ = writeln!(output, "{} new; {} baselined; {} suppressed; {} disabled; {} total candidate(s); {} unselected file(s); {} missing selected path(s); {} unsupported selected path(s); {} AST file(s); {} lexical fallback file(s).", report.findings.len(), report.baselined_findings, report.suppressed_findings, report.disabled_findings, report.total_findings, report.unselected_files, report.missing_selected_files, report.unsupported_selected_files, report.ast_files, report.lexical_files);
     for error in &report.errors {
         let _ = writeln!(output, "warning: {}", safe_terminal(error));
     }

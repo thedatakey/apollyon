@@ -1,21 +1,21 @@
-[HIGH] APO004 generated/ignored.rb:1
+[HIGH] APO004 generated/ignored.rb:1 (ast/candidate)
   Dynamic code execution requires review of whether code or input can be influenced by an attacker.
   evidence: eval(generated_input)
-[HIGH] APO006 src/Service.java:5
+[HIGH] APO006 src/Service.java:5 (ast/candidate)
   Deserialization API may construct attacker-controlled objects; require a safe format, trusted input, or an explicit allowlist.
   evidence: return input.readObject();
-[HIGH] APO004 src/app.py:5
+[HIGH] APO004 src/app.py:5 (ast/candidate)
   Dynamic code execution requires review of whether code or input can be influenced by an attacker.
   evidence: return eval(expression)
-[HIGH] APO006 src/app.py:9
+[HIGH] APO006 src/app.py:9 (ast/candidate)
   Deserialization API may construct attacker-controlled objects; require a safe format, trusted input, or an explicit allowlist.
   evidence: return pickle.loads(payload)
-[HIGH] APO001 src/legacy.c:4
+[HIGH] APO001 src/legacy.c:4 (ast/candidate)
   Unbounded C string operation may permit memory corruption; use a length-aware API and verify destination bounds.
   evidence: strcpy(destination, source);
-[MEDIUM] APO005 src/runner.ts:4
+[MEDIUM] APO005 src/runner.ts:4 (ast/candidate)
   Operating-system command execution requires review of argument separation, shell use, and untrusted input.
   evidence: child_process.exec(command);
 
 6 finding(s); 5/5 supported file(s) scanned; 552 byte(s) read; 0 symlink(s) skipped; 0 file(s) and 1 directories excluded; complete: true.
-6 new; 0 baselined; 0 suppressed; 0 disabled; 6 total candidate(s); 0 unselected file(s); 0 missing selected path(s); 0 unsupported selected path(s).
+6 new; 0 baselined; 0 suppressed; 0 disabled; 6 total candidate(s); 0 unselected file(s); 0 missing selected path(s); 0 unsupported selected path(s); 5 AST file(s); 0 lexical fallback file(s).

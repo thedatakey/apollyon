@@ -81,8 +81,8 @@ jobs:
 
       - name: Validate minimum Rust version
         run: |
-          rustup toolchain install 1.74.0 --profile minimal --no-self-update
-          cargo +1.74.0 check --locked
+          rustup toolchain install 1.85.0 --profile minimal --no-self-update
+          cargo +1.85.0 check --locked
 
   build:
     needs: validate

@@ -82,6 +82,22 @@ pub fn render_sarif(report: &ScanReport) -> String {
         }
         output.push_str("{\"ruleId\":");
         json_string(&mut output, finding.rule_id);
+        output.push_str(",\"properties\":{\"engine\":");
+        json_string(&mut output, finding.engine.as_str());
+        output.push_str(",\"confidence\":");
+        json_string(&mut output, finding.confidence.as_str());
+        output.push_str(",\"trace\":[");
+        for (step_index, step) in finding.trace.iter().enumerate() {
+            if step_index > 0 {
+                output.push(',');
+            }
+            output.push_str("{\"path\":");
+            json_string(&mut output, &step.path);
+            let _ = write!(output, ",\"line\":{},\"kind\":", step.line);
+            json_string(&mut output, &step.kind);
+            output.push('}');
+        }
+        output.push_str("]}");
         output.push_str(",\"partialFingerprints\":{\"apollyon/v1\":");
         json_string(&mut output, &finding.fingerprint);
         output.push_str("},\"level\":");
