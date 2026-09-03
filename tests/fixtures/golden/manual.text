@@ -1,0 +1,14 @@
+[HIGH] APO004 generated/ignored.rb:1
+  Dynamic code execution requires review of whether code or input can be influenced by an attacker.
+[HIGH] APO006 src/Service.java:5
+  Deserialization API may construct attacker-controlled objects; require a safe format, trusted input, or an explicit allowlist.
+[HIGH] APO004 src/app.py:5
+  Dynamic code execution requires review of whether code or input can be influenced by an attacker.
+[HIGH] APO006 src/app.py:9
+  Deserialization API may construct attacker-controlled objects; require a safe format, trusted input, or an explicit allowlist.
+[HIGH] APO001 src/legacy.c:4
+  Unbounded C string operation may permit memory corruption; use a length-aware API and verify destination bounds.
+[MEDIUM] APO005 src/runner.ts:4
+  Operating-system command execution requires review of argument separation, shell use, and untrusted input.
+
+6 finding(s); 5/5 supported file(s) scanned; 552 byte(s) read; 0 symlink(s) skipped; 0 file(s) and 1 directories excluded; complete: true.
