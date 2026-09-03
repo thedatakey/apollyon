@@ -7,6 +7,13 @@ versioning after its first tagged release.
 
 ### Added
 
+- Phase 1 lexical rules APO007–APO012 for secret, crypto, randomness, TLS, SQL,
+  and filesystem review boundaries, with positive/negative fixtures.
+- Same-line comment suppressions, SHA-256 baselines, changed-file lists and
+  bounded Git diffs, bounded nested gitignore handling, and configuration.
+- Explicit counts for suppressed, disabled, baselined, new, and total candidates,
+  plus selected-file coverage. Secret candidate lines remain redacted.
+
 - Nine exact CLI output snapshots for text, JSON, and SARIF, covering default
   scanning, exclusions, and explicitly enabled snippets; integration checks
   for exit codes and library/CLI rendering parity.
@@ -23,6 +30,10 @@ versioning after its first tagged release.
   `CSHARP_FORMATTER_PROXIMITY_LINES` (20) lines of the constructor.
 
 ### Changed
+
+- Phase 1 golden snapshots intentionally add the new rule registry, stable
+  finding fingerprints, and control/selection counters. Existing manual-project
+  findings and coverage remain unchanged; findings v1 is retained.
 
 - Internal restructure into a library crate; no behavior change. The binary
   delegates to the library, with cohesive CLI, lexer, scanner, report,

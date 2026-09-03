@@ -66,3 +66,26 @@ for scan errors. Source snippets remain opt-in. Use `--output` for ingestion
 files and parse the same process exit codes documented in the README. SARIF
 paths are UTF-8 percent-encoded URI references; JSON paths remain raw relative
 paths. The output path must be new because Apollyon never overwrites reports.
+
+## Phase 1 additive fields
+
+Each JSON finding now includes `fingerprint`, a deterministic lowercase SHA-256
+identifier described in [CONFIG.md](CONFIG.md). SARIF includes the same value
+in `partialFingerprints["apollyon/v1"]`.
+
+JSON `summary` and SARIF invocation `properties` add:
+
+- `suppressed_findings`: comment-suppressed candidates.
+- `disabled_findings`: candidates hidden by rule configuration.
+- `new`: visible, non-baselined findings (also the findings array length).
+- `baselined`: occurrences matching the supplied baseline.
+- `total`: all matched candidates, including those hidden by these controls.
+- `unselected_files`: discovered supported files outside changed-file selection.
+- `missing_selected_files`: selected paths absent from the workspace, including deletions.
+- `unsupported_selected_files`: existing selected directories or unsupported file types.
+
+`total = new + baselined + suppressed_findings + disabled_findings`. Disabled
+rules take precedence over suppression accounting. Candidate limits include
+hidden matches. Snippets are null for every finding on a secret-candidate line.
+Explicit selection can yield a complete scan with no selected source files;
+inspect selection/exclusion counts when interpreting coverage.

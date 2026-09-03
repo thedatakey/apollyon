@@ -86,3 +86,71 @@ pub(super) fn contains_ruby_command(code: &str, name: &str) -> bool {
 pub(super) fn contains_any_ruby_command(code: &str, names: &[&str]) -> bool {
     names.iter().any(|name| contains_ruby_command(code, name))
 }
+
+// Phase 1 pattern tables. These are lexical review boundaries, not verdicts.
+pub(super) const SECRET_NAMES: &[&str] =
+    &["password", "passwd", "api_key", "apikey", "secret", "token"];
+pub(super) const SECRET_PREFIXES: &[(&str, usize)] = &[
+    ("AKIA", 20),
+    ("ghp_", 36),
+    ("xoxb-", 20),
+    ("xoxa-", 20),
+    ("xoxp-", 20),
+    ("xoxr-", 20),
+    ("xoxs-", 20),
+    ("sk-", 32),
+    ("AIza", 35),
+];
+pub(super) const WEAK_CRYPTO: &[&str] = &[
+    "MD5",
+    "md5",
+    "SHA1",
+    "sha1",
+    "SHA-1",
+    "DES",
+    "TripleDES",
+    "3DES",
+    "RC4",
+    "rc4",
+    "ECB",
+    "MODE_ECB",
+];
+pub(super) const CRYPTO_FACTORIES: &[&str] = &[
+    "MessageDigest.getInstance",
+    "Cipher.getInstance",
+    "crypto.createHash",
+    "createHash",
+    "hashlib.new",
+];
+pub(super) const SQL_APIS: &[&str] = &[
+    "execute",
+    "executemany",
+    "query",
+    "rawQuery",
+    "createStatement",
+];
+pub(super) const SQL_KEYWORDS: &[&str] = &["SELECT ", "INSERT ", "UPDATE ", "DELETE "];
+pub(super) const PATH_APIS: &[&str] = &[
+    "open",
+    "fopen",
+    "readFile",
+    "readFileSync",
+    "File",
+    "File.open",
+    "File::open",
+    "read_to_string",
+    "file_get_contents",
+];
+pub(super) const RANDOM_JS: &[&str] = &["Math.random"];
+pub(super) const RANDOM_C: &[&str] = &["rand", "srand"];
+pub(super) const RANDOM_PY: &[&str] = &["random.random", "random.randint", "random.randrange"];
+pub(super) const RANDOM_JVM: &[&str] = &["java.util.Random", "Random"];
+pub(super) const RANDOM_PHP: &[&str] = &["mt_rand", "rand"];
+pub(super) const TLS_FLAGS: &[(&str, &str)] = &[
+    ("verify", "False"),
+    ("rejectUnauthorized", "false"),
+    ("InsecureSkipVerify", "true"),
+    ("check_hostname", "False"),
+    ("CURLOPT_SSL_VERIFYPEER", "false"),
+    ("CURLOPT_SSL_VERIFYHOST", "0"),
+];

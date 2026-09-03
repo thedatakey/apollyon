@@ -1,5 +1,6 @@
 //! The fixed lexical rule registry and family matchers.
 
+pub(crate) mod adoption;
 pub(crate) mod deserialization;
 pub(crate) mod exec;
 pub(crate) mod memory;
@@ -57,6 +58,12 @@ pub(crate) const RULES: &[RuleInfo] = &[
         message: "Deserialization API may construct attacker-controlled objects; require a safe format, trusted input, or an explicit allowlist.",
         languages: "Python, Java, Kotlin, C#, PHP, and Ruby",
     },
+    RuleInfo { id: "APO007", name: "hardcoded-secret", severity: Severity::High, message: "Embedded credential material requires review of secret storage and rotation; source evidence is redacted.", languages: "all supported languages" },
+    RuleInfo { id: "APO008", name: "weak-crypto", severity: Severity::Medium, message: "Weak cryptographic primitive requires review of security purpose and algorithm selection.", languages: "all supported languages" },
+    RuleInfo { id: "APO009", name: "insecure-randomness", severity: Severity::Info, message: "Non-cryptographic randomness requires review if used for security-sensitive values.", languages: "C, C++, JavaScript, TypeScript, Python, Java, Kotlin, PHP" },
+    RuleInfo { id: "APO010", name: "tls-verification-disabled", severity: Severity::High, message: "Disabled TLS verification requires review of certificate and hostname authentication.", languages: "Python, JavaScript, TypeScript, Go, Java, Kotlin, PHP, C, C++" },
+    RuleInfo { id: "APO011", name: "sql-string-building", severity: Severity::Medium, message: "Dynamically assembled SQL requires review of parameterization and untrusted input.", languages: "all supported languages" },
+    RuleInfo { id: "APO012", name: "path-traversal-sink", severity: Severity::Medium, message: "Variable filesystem path requires review of input validation and directory confinement.", languages: "all supported languages" },
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

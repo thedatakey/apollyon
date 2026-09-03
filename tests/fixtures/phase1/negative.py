@@ -1,0 +1,7 @@
+password = os.environ.get("PW")
+hashlib.sha256(data)
+secrets.randbelow(100)
+requests.get(url, verify=True)
+cursor.execute("SELECT id FROM items WHERE name = ?", (name,))
+open("fixed.txt")
+# hashlib.md5(data); requests.get(url, verify=False); open(user_path)

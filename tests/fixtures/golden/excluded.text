@@ -10,3 +10,4 @@
   Operating-system command execution requires review of argument separation, shell use, and untrusted input.
 
 5 finding(s); 4/4 supported file(s) scanned; 530 byte(s) read; 0 symlink(s) skipped; 0 file(s) and 2 directories excluded; complete: true.
+5 new; 0 baselined; 0 suppressed; 0 disabled; 5 total candidate(s); 0 unselected file(s); 0 missing selected path(s); 0 unsupported selected path(s).

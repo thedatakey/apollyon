@@ -179,11 +179,21 @@ fn slash_regex_end(chars: &[char], start: usize) -> Option<usize> {
     None
 }
 
-pub(crate) fn sanitize_code_line(line: &str, language: Language, state: &mut LexState) -> String {
+pub(crate) struct LineView {
+    pub code: String,
+    pub visible: String,
+    pub masked: String,
+    pub literals: Vec<String>,
+    pub comments: String,
+}
+
+pub(crate) fn lex_line(line: &str, language: Language, state: &mut LexState) -> LineView {
     let chars: Vec<char> = line.chars().collect();
     let mut output = String::with_capacity(line.len());
+    let mut kinds = vec![0u8; chars.len()];
     let mut index = 0;
     while index < chars.len() {
+        let start = index;
         if let Some(hashes) = state.rust_raw_hashes {
             if chars[index] == '"'
                 && (0..hashes).all(|offset| chars.get(index + 1 + offset) == Some(&'#'))
@@ -194,6 +204,7 @@ pub(crate) fn sanitize_code_line(line: &str, language: Language, state: &mut Lex
                 index += 1;
             }
             output.push(' ');
+            kinds[start..index].fill(1);
             continue;
         }
         if let Some(quote) = state.triple_quote {
@@ -206,6 +217,7 @@ pub(crate) fn sanitize_code_line(line: &str, language: Language, state: &mut Lex
                 index += 1;
             }
             output.push(' ');
+            kinds[start..index].fill(1);
             continue;
         }
         if let Some(quote) = state.quote {
@@ -230,6 +242,7 @@ pub(crate) fn sanitize_code_line(line: &str, language: Language, state: &mut Lex
                 index += 1;
             }
             output.push(' ');
+            kinds[start..index].fill(1);
             continue;
         }
         if state.block_comment_depth > 0 {
@@ -246,10 +259,12 @@ pub(crate) fn sanitize_code_line(line: &str, language: Language, state: &mut Lex
                 index += 1;
             }
             output.push(' ');
+            kinds[start..index].fill(2);
             continue;
         }
         if uses_hash_comments(language) && chars[index] == '#' {
             output.push(' ');
+            kinds[index..].fill(2);
             break;
         }
         if uses_slash_comments(language)
@@ -257,6 +272,7 @@ pub(crate) fn sanitize_code_line(line: &str, language: Language, state: &mut Lex
             && chars.get(index + 1) == Some(&'/')
         {
             output.push(' ');
+            kinds[index..].fill(2);
             break;
         }
         if uses_slash_comments(language)
@@ -266,6 +282,7 @@ pub(crate) fn sanitize_code_line(line: &str, language: Language, state: &mut Lex
             state.block_comment_depth = 1;
             output.push(' ');
             index += 2;
+            kinds[start..index].fill(2);
             continue;
         }
         if matches!(language, Language::JavaScript | Language::Ruby)
@@ -280,6 +297,7 @@ pub(crate) fn sanitize_code_line(line: &str, language: Language, state: &mut Lex
                 index = chars.len();
             }
             output.push(' ');
+            kinds[start..index].fill(3);
             continue;
         }
         if language == Language::Rust {
@@ -287,11 +305,13 @@ pub(crate) fn sanitize_code_line(line: &str, language: Language, state: &mut Lex
                 state.rust_raw_hashes = Some(hashes);
                 output.push(' ');
                 index = content_start;
+                kinds[start..index].fill(1);
                 continue;
             }
             if is_rust_lifetime(&chars, index) {
                 output.push(chars[index]);
                 index += 1;
+                kinds[start..index].fill(0);
                 continue;
             }
         }
@@ -302,6 +322,7 @@ pub(crate) fn sanitize_code_line(line: &str, language: Language, state: &mut Lex
             state.triple_quote = Some(chars[index]);
             output.push(' ');
             index += 3;
+            kinds[start..index].fill(1);
             continue;
         }
         if matches!(chars[index], '"' | '\'')
@@ -319,12 +340,50 @@ pub(crate) fn sanitize_code_line(line: &str, language: Language, state: &mut Lex
             state.quote = Some(chars[index]);
             output.push(' ');
             index += 1;
+            kinds[start..index].fill(1);
             continue;
         }
         output.push(chars[index]);
         index += 1;
     }
-    output
+    let mut visible = String::with_capacity(line.len());
+    let mut masked = String::with_capacity(line.len());
+    for (ch, kind) in chars.iter().zip(&kinds) {
+        if *kind < 2 {
+            visible.push(*ch);
+        } else {
+            visible.extend(std::iter::repeat(' ').take(ch.len_utf8()));
+        }
+        if *kind == 0 {
+            masked.push(*ch);
+        } else {
+            masked.extend(std::iter::repeat(' ').take(ch.len_utf8()));
+        }
+    }
+    let mut literals = Vec::new();
+    let mut comments = String::new();
+    let mut cursor = 0;
+    while cursor < chars.len() {
+        let kind = kinds[cursor];
+        let start = cursor;
+        while cursor < chars.len() && kinds[cursor] == kind {
+            cursor += 1;
+        }
+        if kind == 1 {
+            literals.push(chars[start..cursor].iter().collect());
+        }
+        if kind == 2 {
+            comments.extend(&chars[start..cursor]);
+            comments.push(' ');
+        }
+    }
+    LineView {
+        code: output,
+        visible,
+        masked,
+        literals,
+        comments,
+    }
 }
 
 pub(crate) fn is_identifier_character(character: char) -> bool {

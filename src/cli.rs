@@ -22,6 +22,20 @@ pub(crate) struct ScanOptions {
     pub(crate) fail_on: Option<Severity>,
     pub(crate) output: Option<PathBuf>,
     pub(crate) excludes: Vec<String>,
+    pub(crate) controls: Controls,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub(crate) struct Controls {
+    pub baseline: Option<PathBuf>,
+    pub write_baseline: Option<PathBuf>,
+    pub changed_files: Option<PathBuf>,
+    pub diff: Option<String>,
+    pub no_gitignore: bool,
+    pub fail_on_explicit: bool,
+    pub enable_rules: Vec<String>,
+    pub disable_rules: Vec<String>,
+    pub severities: Vec<(String, Severity)>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -29,12 +43,12 @@ pub(crate) enum Command {
     Help,
     Rules,
     Version,
-    Scan(ScanOptions),
+    Scan(Box<ScanOptions>),
 }
 
 pub(crate) fn usage() -> &'static str {
     "Apollyon — bounded, evidence-first source assessment\n\n\
-Usage:\n  apollyon scan <path> [--format text|json|sarif] [--output <file>] [--exclude <path>]...\n                       [--include-snippets] [--fail-on info|medium|high|never]\n  apollyon rules\n  apollyon --version\n  apollyon --help\n\n\
+Usage:\n  apollyon scan <path> [--format text|json|sarif] [--output <file>] [--exclude <path>]...\n                       [--include-snippets] [--fail-on info|medium|high|never]\n                       [--baseline <file>] [--write-baseline <file>]\n                       [--diff <git-ref> | --changed-files <file>] [--no-gitignore]\n                       [--enable-rule <id>] [--disable-rule <id>] [--severity <id>=<level>]\n  apollyon rules\n  apollyon --version\n  apollyon --help\n\n\
 Exit codes: 0 complete, 1 finding met --fail-on, 2 invocation/output error, 3 incomplete scan."
 }
 
@@ -58,10 +72,47 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Command, String> {
         fail_on: None,
         output: None,
         excludes: Vec::new(),
+        controls: Controls::default(),
     };
     let mut index = 2;
     while index < args.len() {
         match args[index].as_str() {
+            "--baseline" | "--write-baseline" | "--changed-files" | "--diff" | "--enable-rule"
+            | "--disable-rule" | "--severity" => {
+                let flag = args[index].as_str();
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| format!("{flag} requires a value"))?;
+                match flag {
+                    "--baseline" => options.controls.baseline = Some(value.into()),
+                    "--write-baseline" => options.controls.write_baseline = Some(value.into()),
+                    "--changed-files" => options.controls.changed_files = Some(value.into()),
+                    "--diff" => options.controls.diff = Some(value.clone()),
+                    "--enable-rule" | "--disable-rule" => {
+                        crate::config::check_rule(value)?;
+                        if flag == "--enable-rule" {
+                            options.controls.enable_rules.push(value.clone());
+                        } else {
+                            options.controls.disable_rules.push(value.clone());
+                        }
+                    }
+                    "--severity" => {
+                        let (id, level) = value
+                            .split_once('=')
+                            .ok_or("--severity requires APOxxx=info|medium|high")?;
+                        crate::config::check_rule(id)?;
+                        let level = crate::config::severity(level)?
+                            .ok_or("rule severity cannot be never")?;
+                        options.controls.severities.push((id.into(), level));
+                    }
+                    _ => unreachable!(),
+                }
+                index += 2;
+            }
+            "--no-gitignore" => {
+                options.controls.no_gitignore = true;
+                index += 1;
+            }
             "--format" => {
                 let value = args
                     .get(index + 1)
@@ -98,6 +149,7 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Command, String> {
                 index += 1;
             }
             "--fail-on" => {
+                options.controls.fail_on_explicit = true;
                 let value = args
                     .get(index + 1)
                     .ok_or_else(|| "--fail-on requires info, medium, high, or never".to_owned())?;
@@ -113,10 +165,13 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Command, String> {
             unknown => return Err(format!("unknown argument: {unknown}")),
         }
     }
-    Ok(Command::Scan(options))
+    if options.controls.diff.is_some() && options.controls.changed_files.is_some() {
+        return Err("--diff and --changed-files are mutually exclusive".into());
+    }
+    Ok(Command::Scan(Box::new(options)))
 }
 
-fn normalize_exclude(value: &str) -> Result<String, String> {
+pub(crate) fn normalize_exclude(value: &str) -> Result<String, String> {
     let normalized_separators = value.replace('\\', "/");
     let mut parts = Vec::new();
     for component in Path::new(&normalized_separators).components() {
@@ -207,14 +262,18 @@ mod tests {
         .unwrap();
         assert_eq!(
             command,
-            Command::Scan(ScanOptions {
+            Command::Scan(Box::new(ScanOptions {
                 path: PathBuf::from("src"),
                 format: OutputFormat::Json,
                 include_snippets: true,
                 fail_on: Some(Severity::High),
                 output: None,
                 excludes: Vec::new(),
-            })
+                controls: Controls {
+                    fail_on_explicit: true,
+                    ..Default::default()
+                },
+            }))
         );
     }
 

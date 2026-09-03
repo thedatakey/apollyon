@@ -11,9 +11,10 @@ pub struct Finding {
     pub path: String,
     pub line: usize,
     pub snippet: Option<String>,
+    pub fingerprint: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ScanReport {
     pub root: String,
     pub supported_files: usize,
@@ -27,6 +28,13 @@ pub struct ScanReport {
     pub errors: Vec<String>,
     pub suppressed_errors: usize,
     pub findings: Vec<Finding>,
+    pub total_findings: usize,
+    pub suppressed_findings: usize,
+    pub disabled_findings: usize,
+    pub baselined_findings: usize,
+    pub unselected_files: usize,
+    pub missing_selected_files: usize,
+    pub unsupported_selected_files: usize,
 }
 
 impl ScanReport {

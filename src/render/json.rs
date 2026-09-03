@@ -34,7 +34,7 @@ pub fn render_json(report: &ScanReport) -> String {
     json_string(&mut output, &report.root);
     let _ = write!(
         output,
-        ",\"summary\":{{\"supported_files\":{},\"scanned_files\":{},\"skipped_files\":{},\"skipped_symlinks\":{},\"excluded_files\":{},\"excluded_directories\":{},\"total_bytes\":{},\"suppressed_errors\":{},\"complete\":{}}},\"errors\":[",
+        ",\"summary\":{{\"supported_files\":{},\"scanned_files\":{},\"skipped_files\":{},\"skipped_symlinks\":{},\"excluded_files\":{},\"excluded_directories\":{},\"total_bytes\":{},\"suppressed_errors\":{},\"complete\":{}",
         report.supported_files,
         report.scanned_files,
         report.skipped_files,
@@ -45,6 +45,8 @@ pub fn render_json(report: &ScanReport) -> String {
         report.suppressed_errors,
         report.complete
     );
+    output.push_str(&super::control_properties(report));
+    output.push_str("},\"errors\":[");
     for (index, error) in report.errors.iter().enumerate() {
         if index > 0 {
             output.push(',');
@@ -62,6 +64,8 @@ pub fn render_json(report: &ScanReport) -> String {
         json_string(&mut output, finding.severity.as_str());
         output.push_str(",\"message\":");
         json_string(&mut output, finding.message);
+        output.push_str(",\"fingerprint\":");
+        json_string(&mut output, &finding.fingerprint);
         output.push_str(",\"path\":");
         json_string(&mut output, &finding.path);
         let _ = write!(output, ",\"line\":{},\"snippet\":", finding.line);
