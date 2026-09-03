@@ -18,6 +18,8 @@ README/changelog updates. No new rules, flags, output fields, or dependencies.
 
 ## Phase 1 — Lexical rules and adoption controls
 
+Implemented; see [the phase report](PHASE_1_REPORT.md) and [CONFIG.md](CONFIG.md).
+
 Implement in this order within the phase, with focused tests for each step:
 
 1. Extend lexical output to retain bounded literal/comment metadata while

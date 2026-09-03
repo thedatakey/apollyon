@@ -18,3 +18,4 @@
   evidence: child_process.exec(command);
 
 6 finding(s); 5/5 supported file(s) scanned; 552 byte(s) read; 0 symlink(s) skipped; 0 file(s) and 1 directories excluded; complete: true.
+6 new; 0 baselined; 0 suppressed; 0 disabled; 6 total candidate(s); 0 unselected file(s); 0 missing selected path(s); 0 unsupported selected path(s).

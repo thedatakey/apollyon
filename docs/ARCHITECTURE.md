@@ -89,3 +89,17 @@ this matters for byte counts. Snapshots are never automatically regenerated.
 See [the snapshot provenance](../tests/fixtures/golden/README.md). The test
 corpus bounds the compatibility evidence; it cannot prove equivalence for all
 possible inputs.
+
+## Phase 1 extensions
+
+The lexer retains bounded literal/comment spans and aligned masked code for
+new rules while preserving the existing sanitizer state machine. `config.rs`
+provides explicit scan settings and the CLI config subset; `suppression.rs`,
+`baseline.rs`, and `fingerprint.rs` implement candidate filtering and stable
+identity. `ignore.rs` supplies inherited directory rules; `selection.rs` reads
+bounded path lists or read-only Git output. The scanner counts candidates before
+filtering, preserves sensitive-line redaction, and accounts for selection gaps.
+
+See [CONFIG.md](CONFIG.md), [RULES.md](RULES.md), and the additive findings-v1
+fields in [FINDINGS_SCHEMA.md](FINDINGS_SCHEMA.md). Phase 0 paragraphs above
+record the original extraction; the current registry contains twelve rules.

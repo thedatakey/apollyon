@@ -66,7 +66,7 @@ pub fn render_sarif(report: &ScanReport) -> String {
     output.push_str("],\"properties\":{\"scannedFiles\":");
     let _ = write!(
         output,
-        "{},\"supportedFiles\":{},\"totalBytes\":{},\"skippedSymlinks\":{},\"excludedFiles\":{},\"excludedDirectories\":{}}}}}],\"results\":[",
+        "{},\"supportedFiles\":{},\"totalBytes\":{},\"skippedSymlinks\":{},\"excludedFiles\":{},\"excludedDirectories\":{}",
         report.scanned_files,
         report.supported_files,
         report.total_bytes,
@@ -74,13 +74,17 @@ pub fn render_sarif(report: &ScanReport) -> String {
         report.excluded_files,
         report.excluded_directories
     );
+    output.push_str(&super::control_properties(report));
+    output.push_str("}}],\"results\":[");
     for (index, finding) in report.findings.iter().enumerate() {
         if index > 0 {
             output.push(',');
         }
         output.push_str("{\"ruleId\":");
         json_string(&mut output, finding.rule_id);
-        output.push_str(",\"level\":");
+        output.push_str(",\"partialFingerprints\":{\"apollyon/v1\":");
+        json_string(&mut output, &finding.fingerprint);
+        output.push_str("},\"level\":");
         json_string(&mut output, finding.severity.sarif_level());
         output.push_str(",\"message\":{\"text\":");
         json_string(&mut output, finding.message);

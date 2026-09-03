@@ -1,10 +1,11 @@
 //! Bounded discovery, file reading, and lexical scanning.
 
 use crate::{
+    config::ScanSettings,
     display::safe_snippet,
-    lexer::{language_for, sanitize_code_line, LexState},
+    lexer::{language_for, lex_line, LexState},
     report::{Finding, ScanReport},
-    rules::{deserialization, exec, memory},
+    rules::{adoption, deserialization, exec, memory},
 };
 use std::{
     fs,
@@ -34,6 +35,7 @@ const DEFAULT_IGNORED_DIRECTORIES: &[&str] = &[
     "venv",
 ];
 
+#[cfg(test)]
 pub(crate) fn scan_file(
     path: &Path,
     display_path: &str,
@@ -41,35 +43,90 @@ pub(crate) fn scan_file(
     include_snippets: bool,
     finding_budget: usize,
 ) -> (Vec<Finding>, bool, bool) {
+    let result = scan_file_settings(
+        path,
+        display_path,
+        contents,
+        &ScanSettings {
+            include_snippets,
+            ..Default::default()
+        },
+        finding_budget,
+    );
+    (result.findings, result.truncated, result.complete)
+}
+
+#[derive(Default)]
+struct FileScan {
+    findings: Vec<Finding>,
+    truncated: bool,
+    complete: bool,
+    total: usize,
+    suppressed: usize,
+    disabled: usize,
+}
+
+fn scan_file_settings(
+    path: &Path,
+    display_path: &str,
+    contents: &str,
+    settings: &ScanSettings,
+    finding_budget: usize,
+) -> FileScan {
     let Some(language) = language_for(path) else {
-        return (Vec::new(), false, true);
+        return FileScan {
+            complete: true,
+            ..Default::default()
+        };
     };
-    let mut findings = Vec::new();
+    let mut result = FileScan {
+        complete: true,
+        ..Default::default()
+    };
     let mut lex_state = LexState::default();
     let mut csharp_unsafe_formatter_seen_at: Option<usize> = None;
     for (index, original_line) in contents.lines().enumerate() {
-        let code = sanitize_code_line(original_line, language, &mut lex_state);
+        let view = lex_line(original_line, language, &mut lex_state);
+        let code = &view.code;
         let mut candidates = Vec::with_capacity(4);
-        memory::match_rules(&code, language, &mut candidates);
-        exec::match_rules(&code, language, &mut candidates);
+        memory::match_rules(code, language, &mut candidates);
+        exec::match_rules(code, language, &mut candidates);
         deserialization::match_rules(
-            &code,
+            code,
             language,
             index,
             &mut csharp_unsafe_formatter_seen_at,
             &mut candidates,
         );
+        adoption::match_rules(&view, language, &mut candidates);
+        let sensitive_line = candidates.iter().any(|r| r.id == "APO007");
         for rule in candidates {
-            if findings.len() == finding_budget {
-                return (findings, true, true);
+            if result.total == finding_budget {
+                result.truncated = true;
+                return result;
             }
-            findings.push(Finding {
+            result.total += 1;
+            if !settings.enabled(rule.id) {
+                result.disabled += 1;
+                continue;
+            }
+            if crate::suppression::ignores(&view.comments, rule.id) {
+                result.suppressed += 1;
+                continue;
+            }
+            result.findings.push(Finding {
                 rule_id: rule.id,
-                severity: rule.severity,
+                severity: settings
+                    .severity
+                    .get(rule.id)
+                    .copied()
+                    .unwrap_or(rule.severity),
                 message: rule.message,
                 path: display_path.to_owned(),
                 line: index + 1,
-                snippet: include_snippets.then(|| safe_snippet(original_line)),
+                snippet: (settings.include_snippets && !sensitive_line)
+                    .then(|| safe_snippet(original_line)),
+                fingerprint: crate::fingerprint::finding(rule.id, display_path, original_line),
             });
         }
     }
@@ -78,7 +135,8 @@ pub(crate) fn scan_file(
         && lex_state.triple_quote.is_none()
         && lex_state.rust_raw_hashes.is_none()
         && !lex_state.slash_regex_unterminated;
-    (findings, false, lexically_complete)
+    result.complete = lexically_complete;
+    result
 }
 
 fn relative_display(root: &Path, path: &Path) -> String {
@@ -144,7 +202,18 @@ impl Discovery {
     }
 }
 
+#[cfg(test)]
 fn discover_files(root: &Path, excludes: &[String]) -> Discovery {
+    discover_files_settings(
+        root,
+        &ScanSettings {
+            excludes: excludes.to_vec(),
+            ..Default::default()
+        },
+    )
+}
+fn discover_files_settings(root: &Path, settings: &ScanSettings) -> Discovery {
+    let excludes = &settings.excludes;
     let mut discovery = Discovery::default();
     let root_metadata = match fs::symlink_metadata(root) {
         Ok(metadata) => metadata,
@@ -172,9 +241,29 @@ fn discover_files(root: &Path, excludes: &[String]) -> Discovery {
         return discovery;
     }
 
-    let mut stack = vec![root.to_path_buf()];
+    let mut stack = vec![(root.to_path_buf(), std::sync::Arc::new(Vec::new()))];
+    let mut ignore_rule_count = 0;
     let mut discovered_entries = 0;
-    'walk: while let Some(directory) = stack.pop() {
+    'walk: while let Some((directory, inherited)) = stack.pop() {
+        let mut ignore_rules = inherited;
+        if !settings.no_gitignore {
+            match crate::ignore::load(root, &directory) {
+                Ok(rules) if ignore_rule_count + rules.len() <= 1000 => {
+                    ignore_rule_count += rules.len();
+                    if !rules.is_empty() {
+                        let mut combined = (*ignore_rules).clone();
+                        combined.extend(rules);
+                        ignore_rules = std::sync::Arc::new(combined);
+                    }
+                }
+                Ok(_) => {
+                    discovery.add_error("aggregate .gitignore limit of 1000 rules exceeded".into())
+                }
+                Err(error) => {
+                    discovery.add_error(format!("{}: {error}", relative_display(root, &directory)))
+                }
+            }
+        }
         let entries = match fs::read_dir(&directory) {
             Ok(entries) => entries,
             Err(error) => {
@@ -216,13 +305,17 @@ fn discover_files(root: &Path, excludes: &[String]) -> Discovery {
                 continue;
             }
             if file_type.is_dir() {
-                if should_ignore_directory(root, &path, excludes) {
+                if should_ignore_directory(root, &path, excludes)
+                    || crate::ignore::ignored(&ignore_rules, &relative_display(root, &path), true)
+                {
                     discovery.excluded_directories += 1;
                 } else {
-                    stack.push(path);
+                    stack.push((path, ignore_rules.clone()));
                 }
             } else if file_type.is_file() && language_for(&path).is_some() {
-                if matches_custom_exclude(root, &path, excludes) {
+                if matches_custom_exclude(root, &path, excludes)
+                    || crate::ignore::ignored(&ignore_rules, &relative_display(root, &path), false)
+                {
                     discovery.excluded_files += 1;
                 } else {
                     discovery.files.push(path);
@@ -234,7 +327,7 @@ fn discover_files(root: &Path, excludes: &[String]) -> Discovery {
     discovery
 }
 
-fn read_bounded_regular_file(path: &Path) -> Result<Vec<u8>, String> {
+pub(crate) fn read_bounded_regular_file(path: &Path) -> Result<Vec<u8>, String> {
     let before = fs::symlink_metadata(path).map_err(|error| error.to_string())?;
     if before.file_type().is_symlink() || !before.is_file() {
         return Err("path is no longer a regular non-symlink file".to_owned());
@@ -275,7 +368,18 @@ fn path_is_within_root(canonical_root: &Path, root_is_file: bool, candidate: &Pa
 }
 
 pub fn scan_path(root: &Path, include_snippets: bool, excludes: &[String]) -> ScanReport {
-    let discovery = discover_files(root, excludes);
+    scan_with_settings(
+        root,
+        &ScanSettings {
+            include_snippets,
+            excludes: excludes.to_vec(),
+            ..Default::default()
+        },
+    )
+}
+
+pub fn scan_with_settings(root: &Path, settings: &ScanSettings) -> ScanReport {
+    let discovery = discover_files_settings(root, settings);
     let supported_files = discovery.files.len();
     let canonical_root = fs::canonicalize(root).ok();
     let root_is_file = root.is_file();
@@ -292,14 +396,34 @@ pub fn scan_path(root: &Path, include_snippets: bool, excludes: &[String]) -> Sc
         errors: discovery.errors,
         suppressed_errors: discovery.suppressed_errors,
         findings: Vec::new(),
+        ..Default::default()
     };
 
-    if report.supported_files == 0 && report.errors.is_empty() {
+    if let Some(selected) = &settings.selected_files {
+        report.unsupported_selected_files = selected
+            .iter()
+            .filter(|p| {
+                root.join(p).exists()
+                    && (root.join(p).is_dir() || language_for(Path::new(p)).is_none())
+            })
+            .count();
+        report.missing_selected_files = selected.iter().filter(|p| !root.join(p).exists()).count();
+    }
+    if report.supported_files == 0 && report.errors.is_empty() && settings.selected_files.is_none()
+    {
         report.add_error("no supported source files were discovered".to_owned());
     }
 
     for path in discovery.files {
         let display_path = relative_display(root, &path);
+        if settings
+            .selected_files
+            .as_ref()
+            .is_some_and(|files| !files.contains(&display_path))
+        {
+            report.unselected_files += 1;
+            continue;
+        }
         let resolved_before = match fs::canonicalize(&path) {
             Ok(resolved) => resolved,
             Err(error) => {
@@ -345,16 +469,18 @@ pub fn scan_path(root: &Path, include_snippets: bool, excludes: &[String]) -> Sc
             }
         };
         report.scanned_files += 1;
-        let remaining = MAX_FINDINGS - report.findings.len();
-        let (findings, truncated, lexically_complete) =
-            scan_file(&path, &display_path, &contents, include_snippets, remaining);
-        report.findings.extend(findings);
-        if !lexically_complete {
+        let remaining = MAX_FINDINGS - report.total_findings;
+        let result = scan_file_settings(&path, &display_path, &contents, settings, remaining);
+        report.total_findings += result.total;
+        report.suppressed_findings += result.suppressed;
+        report.disabled_findings += result.disabled;
+        report.findings.extend(result.findings);
+        if !result.complete {
             report.add_error(format!(
                 "lexical scan of {display_path} ended inside a comment or string"
             ));
         }
-        if truncated {
+        if result.truncated {
             report.add_error(format!(
                 "finding output stopped at the limit of {MAX_FINDINGS}"
             ));

@@ -1,4 +1,4 @@
-//! Exact CLI snapshots captured from d1dc52e before the library refactor.
+//! Exact CLI snapshots based on d1dc52e, with reviewed Phase 1 additions.
 
 use std::{path::Path, process::Command};
 

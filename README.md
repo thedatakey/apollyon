@@ -42,7 +42,7 @@ with errors and whether the scan completed. Use terminal text for local review,
 versioned JSON for coding agents and automation, or SARIF 2.1.0 for CI and
 GitHub code scanning.
 
-**Status: public pre-alpha v0.2.0.** Apollyon currently implements six bounded
+**Status: public pre-alpha v0.2.0.** Apollyon currently implements twelve bounded
 lexical rules. Findings require human validation; a complete scan is not proof
 that a project is secure.
 
@@ -158,6 +158,24 @@ For a static workspace snapshot, Apollyon skips symbolic links, ignores common
 dependency/build directories, supports explicit file and directory exclusions,
 uses bounded traversal/input/output limits, emits root-relative paths, and
 makes decoding, lexical, traversal, and limit failures explicit.
+
+Phase 1 adds rules for embedded credentials, weak crypto, non-cryptographic
+randomness, disabled TLS verification, SQL string construction, and variable
+filesystem paths (APO007–APO012). See [rule boundaries](docs/RULES.md).
+
+For adoption controls:
+
+```sh
+apollyon scan project --write-baseline baseline.json
+apollyon scan project --baseline baseline.json --fail-on high
+apollyon scan project --diff HEAD
+apollyon scan project --changed-files changed.txt
+apollyon scan project --no-gitignore --disable-rule APO009
+```
+
+Inline comment suppressions, bounded `.gitignore` handling, and optional
+`apollyon.toml` configuration are documented in [CONFIG.md](docs/CONFIG.md).
+Every hidden candidate remains counted as suppressed, disabled, or baselined.
 
 ## Automation contract
 
@@ -284,7 +302,7 @@ Maintainer release steps are documented in [docs/RELEASING.md](docs/RELEASING.md
 ## Roadmap
 
 - Parser-backed rules and richer language-specific fixtures
-- `.gitignore`-aware traversal and changed-file scanning
+- Broader Git ignore syntax and richer changed-file analysis
 - Signed/notarized binaries and package-manager distribution
 - Reachability analysis and safe fuzz-harness adapters
 - Kani, CBMC, and Z3 adapters with explicit bounds and tool versions

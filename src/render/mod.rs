@@ -10,6 +10,10 @@ pub use text::{render_rules, render_text};
 
 const SCOPE_NOTE: &str = "Findings reflect a fixed set of bounded lexical rules only. Zero findings is not a security guarantee and does not imply the scanned code is safe.";
 
+fn control_properties(report: &crate::report::ScanReport) -> String {
+    format!(",\"suppressed_findings\":{},\"disabled_findings\":{},\"new\":{},\"baselined\":{},\"total\":{},\"unselected_files\":{},\"missing_selected_files\":{},\"unsupported_selected_files\":{}", report.suppressed_findings, report.disabled_findings, report.findings.len(), report.baselined_findings, report.total_findings, report.unselected_files, report.missing_selected_files, report.unsupported_selected_files)
+}
+
 #[cfg(test)]
 mod tests {
     use super::json::json_string;
@@ -46,6 +50,7 @@ mod tests {
             errors: Vec::new(),
             suppressed_errors: 0,
             findings: findings("src/é a#%?.py", "eval(input)"),
+            ..Default::default()
         };
         let json = render_json(&report);
         let sarif = render_sarif(&report);

@@ -58,6 +58,7 @@ pub fn render_text(report: &ScanReport) -> String {
         report.excluded_directories,
         report.complete
     );
+    let _ = writeln!(output, "{} new; {} baselined; {} suppressed; {} disabled; {} total candidate(s); {} unselected file(s); {} missing selected path(s); {} unsupported selected path(s).", report.findings.len(), report.baselined_findings, report.suppressed_findings, report.disabled_findings, report.total_findings, report.unselected_files, report.missing_selected_files, report.unsupported_selected_files);
     for error in &report.errors {
         let _ = writeln!(output, "warning: {}", safe_terminal(error));
     }
