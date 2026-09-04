@@ -37,6 +37,10 @@ pub(crate) struct Controls {
     pub disable_rules: Vec<String>,
     pub severities: Vec<(String, Severity)>,
     pub interprocedural: bool,
+    pub cases_dir: Option<PathBuf>,
+    pub authorized: bool,
+    pub repository: Option<String>,
+    pub revision: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -49,7 +53,7 @@ pub(crate) enum Command {
 
 pub(crate) fn usage() -> &'static str {
     "Apollyon — bounded, evidence-first source assessment\n\n\
-Usage:\n  apollyon scan <path> [--format text|json|sarif] [--output <file>] [--exclude <path>]...\n                       [--include-snippets] [--fail-on info|medium|high|never]\n                       [--baseline <file>] [--write-baseline <file>]\n                       [--diff <git-ref> | --changed-files <file>] [--no-gitignore]\n                       [--enable-rule <id>] [--disable-rule <id>] [--severity <id>=<level>] [--interprocedural]\n  apollyon rules\n  apollyon --version\n  apollyon --help\n\n\
+Usage:\n  apollyon scan <path> [--format text|json|sarif] [--output <file>] [--exclude <path>]...\n                       [--include-snippets] [--fail-on info|medium|high|never]\n                       [--baseline <file>] [--write-baseline <file>]\n                       [--diff <git-ref> | --changed-files <file>] [--no-gitignore]\n                       [--enable-rule <id>] [--disable-rule <id>] [--severity <id>=<level>] [--interprocedural]\n                       [--cases-dir <new-directory> --authorized [--repository <id>] [--revision <id>]]\n  apollyon rules\n  apollyon --version\n  apollyon --help\n\n\
 Exit codes: 0 complete, 1 finding met --fail-on, 2 invocation/output error, 3 incomplete scan."
 }
 
@@ -79,7 +83,7 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Command, String> {
     while index < args.len() {
         match args[index].as_str() {
             "--baseline" | "--write-baseline" | "--changed-files" | "--diff" | "--enable-rule"
-            | "--disable-rule" | "--severity" => {
+            | "--disable-rule" | "--severity" | "--cases-dir" | "--repository" | "--revision" => {
                 let flag = args[index].as_str();
                 let value = args
                     .get(index + 1)
@@ -89,6 +93,9 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Command, String> {
                     "--write-baseline" => options.controls.write_baseline = Some(value.into()),
                     "--changed-files" => options.controls.changed_files = Some(value.into()),
                     "--diff" => options.controls.diff = Some(value.clone()),
+                    "--cases-dir" => options.controls.cases_dir = Some(value.into()),
+                    "--repository" => options.controls.repository = Some(value.clone()),
+                    "--revision" => options.controls.revision = Some(value.clone()),
                     "--enable-rule" | "--disable-rule" => {
                         crate::config::check_rule(value)?;
                         if flag == "--enable-rule" {
@@ -112,6 +119,10 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Command, String> {
             }
             "--interprocedural" => {
                 options.controls.interprocedural = true;
+                index += 1;
+            }
+            "--authorized" => {
+                options.controls.authorized = true;
                 index += 1;
             }
             "--no-gitignore" => {
@@ -172,6 +183,15 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Command, String> {
     }
     if options.controls.diff.is_some() && options.controls.changed_files.is_some() {
         return Err("--diff and --changed-files are mutually exclusive".into());
+    }
+    let case_metadata = options.controls.authorized
+        || options.controls.repository.is_some()
+        || options.controls.revision.is_some();
+    if options.controls.cases_dir.is_some() && !options.controls.authorized {
+        return Err("--cases-dir requires explicit --authorized target scope".into());
+    }
+    if options.controls.cases_dir.is_none() && case_metadata {
+        return Err("--authorized, --repository, and --revision require --cases-dir".into());
     }
     Ok(Command::Scan(Box::new(options)))
 }

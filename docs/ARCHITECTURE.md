@@ -1,6 +1,6 @@
 # Architecture
 
-Apollyon is a zero-dependency Rust library and CLI. Phase 0 extracts the existing
+Apollyon is a Rust library and CLI. Phase 0 extracted the existing
 implementation without adding detection behavior or changing findings v1,
 SARIF, text output, CLI options, or exit codes. The baseline is commit
 `d1dc52e6a200d35c2dc974bfd4e1234276313681`, including the C# proximity fix and
@@ -16,6 +16,7 @@ machine-readable scope note.
 | `src/lexer.rs` | Extension-to-language mapping; stateful comment, string, raw-string, lifetime, and regex handling. |
 | `src/scanner.rs` | Discovery, exclusions, bounded reads, coverage, per-file scan orchestration, ordering. |
 | `src/report.rs` | `Finding`, `ScanReport`, and bounded report errors. |
+| `src/case.rs` | Create-new authorized candidate case records and finding references. |
 | `src/rules/mod.rs` | Six-rule registry, metadata, severities, and registry lookup. |
 | `src/rules/patterns.rs` | Shared lexical token, call, and Ruby command matching. |
 | `src/rules/memory.rs` | APO001–APO003: C memory operations and Rust `unsafe`. |
@@ -134,3 +135,19 @@ pinned to 0.1.5 because 0.1.8 raised its Rust requirement after this dependency
 set was selected. The verified minimum Rust version is 1.85; this is the first
 stable release with edition 2024 support needed by current locked transitive
 dependencies.
+
+## Phase 3 evidence boundary
+
+Static scanning may create `apollyon.case/v1` candidate records only when the
+caller supplies `--cases-dir` with explicit `--authorized`. Only tainted
+findings receive cases, and the findings JSON, SARIF, and text renderers carry
+references to them. Candidate generation does not execute target code.
+
+Dynamic work is a separate Python controller. It validates the case and source
+path, copies a bounded snapshot into a disposable Docker tmpfs, verifies the
+container controls, and invokes the first narrow `python-eval/v1` adapter. The
+adapter can reproduce one function-local eval flow, propose an `ast.literal_eval`
+diff on the disposable copy, rerun the trigger and tests, and optionally record
+bounded Z3 syntax and Atheris fuzz evidence. The original source is never
+mounted or changed. See [SANDBOX.md](SANDBOX.md) for the enforced controls and
+[CASE_SCHEMA.md](CASE_SCHEMA.md) for state semantics.

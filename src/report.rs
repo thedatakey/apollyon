@@ -48,6 +48,7 @@ pub struct Finding {
     pub confidence: Confidence,
     pub trace: Vec<TraceStep>,
     pub fingerprint: String,
+    pub case_refs: Vec<String>,
 }
 
 #[derive(Debug, Default)]

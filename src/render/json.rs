@@ -1,10 +1,10 @@
-//! Findings v1 JSON serialization.
+//! Findings v2 JSON serialization.
 
 use super::SCOPE_NOTE;
 use crate::{report::ScanReport, VERSION};
 use std::fmt::Write as _;
 
-pub(super) fn json_string(output: &mut String, value: &str) {
+pub(crate) fn json_string(output: &mut String, value: &str) {
     output.push('"');
     for character in value.chars() {
         match character {
@@ -82,6 +82,16 @@ pub fn render_json(report: &ScanReport) -> String {
         output.push(']');
         output.push_str(",\"fingerprint\":");
         json_string(&mut output, &finding.fingerprint);
+        if !finding.case_refs.is_empty() {
+            output.push_str(",\"case_refs\":[");
+            for (case_index, case_ref) in finding.case_refs.iter().enumerate() {
+                if case_index > 0 {
+                    output.push(',');
+                }
+                json_string(&mut output, case_ref);
+            }
+            output.push(']');
+        }
         output.push_str(",\"path\":");
         json_string(&mut output, &finding.path);
         let _ = write!(output, ",\"line\":{},\"snippet\":", finding.line);

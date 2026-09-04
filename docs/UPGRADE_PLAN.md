@@ -75,7 +75,10 @@ v1 migration. Taint is not proof of exploitability.
 
 ## Phase 3 — Bounded evidence and remediation
 
-Implement the case state machine and sandbox boundary before executing any
+Implemented; see [the phase report](PHASE_3_REPORT.md),
+[CASE_SCHEMA.md](CASE_SCHEMA.md), and [SANDBOX.md](SANDBOX.md).
+
+The implementation established the case state machine and sandbox boundary before executing any
 reproducer. Require explicit target authorization, no network or host secrets,
 no host mounts, disposable storage, bounded CPU/memory/processes/wall time,
 and fail-closed checks. Separate target execution from static scanning.

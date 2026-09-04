@@ -43,7 +43,8 @@ versioned JSON v2 with engine, confidence, and source-to-sink traces for coding 
 GitHub code scanning.
 
 **Status: public pre-alpha v0.2.0.** Apollyon currently implements twelve bounded
-review rules with AST validation and bounded taint traces. Findings require human validation; a complete scan is not proof
+review rules with AST validation, bounded taint traces, and an opt-in case
+workflow for one Python eval boundary. Findings require human validation; a complete scan is not proof
 that a project is secure.
 
 ## Quick start
@@ -177,6 +178,33 @@ apollyon scan project --no-gitignore --disable-rule APO009
 Inline comment suppressions, bounded `.gitignore` handling, and optional
 `apollyon.toml` configuration are documented in [CONFIG.md](docs/CONFIG.md).
 Every hidden candidate remains counted as suppressed, disabled, or baselined.
+
+## Authorized evidence cases
+
+Static case creation is opt-in and requires an explicit authorization marker:
+
+```sh
+apollyon scan project --format json --output findings.json \
+  --cases-dir case-output --authorized \
+  --repository owner/project --revision commit-sha
+```
+
+Only tainted findings create candidate cases. Static scanning still does not
+execute target code. The first dynamic adapter is limited to a function-local
+Python `eval` case and runs only through the documented disposable Docker
+sandbox:
+
+```sh
+docker build --tag apollyon-phase3-tools:1 docker/phase3-tools
+python3 scripts/run_case_sandbox.py \
+  --case case-output/APO-....json --source-root project \
+  --output verified-case.json --adapter python-eval \
+  --propose-fix --formal-z3 --fuzz-seconds 1
+```
+
+It returns a proposed diff and bounded evidence; it does not modify the host
+project. See the [sandbox threat model](docs/SANDBOX.md) and
+[case contract](docs/CASE_SCHEMA.md).
 
 ## Automation contract
 

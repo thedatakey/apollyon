@@ -44,6 +44,9 @@ pub fn render_text(report: &ScanReport) -> String {
                 step.kind
             );
         }
+        for case_ref in &finding.case_refs {
+            let _ = writeln!(output, "  case: {}", safe_terminal(case_ref));
+        }
         if let Some(snippet) = &finding.snippet {
             let _ = writeln!(output, "  evidence: {snippet}");
         }

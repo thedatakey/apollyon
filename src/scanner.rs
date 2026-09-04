@@ -163,6 +163,7 @@ fn scan_file_settings(
                     Confidence::Tainted
                 },
                 trace,
+                case_refs: Vec::new(),
             });
         }
     }
