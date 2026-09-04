@@ -65,7 +65,7 @@ dropped, and bounded CPU, memory, process count, and wall time:
 - GitHub workflow syntax passed actionlint 1.7.12 from official image digest
   `sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667`.
 - A snippet-free static self-scan completed across 59 AST files with no lexical
-  or parse fallback and reported 47 review candidates. That result is an audit
+  or parse fallback and reported 49 review candidates. That result is an audit
   input, not a security verdict.
 
 The first live fetcher check reached OWASP successfully but NIST rejected
