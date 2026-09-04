@@ -56,6 +56,9 @@ versioning after its first tagged release.
 
 ### Changed
 
+- Replaced the repository and README social-preview artwork with the supplied
+  1280×640 Apollyon source-security design.
+
 - The structured-output scope sentence now describes AST validation and the
   explicit lexical fallback; reviewed golden changes update only that field.
 
