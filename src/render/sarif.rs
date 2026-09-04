@@ -97,7 +97,18 @@ pub fn render_sarif(report: &ScanReport) -> String {
             json_string(&mut output, &step.kind);
             output.push('}');
         }
-        output.push_str("]}");
+        output.push(']');
+        if !finding.case_refs.is_empty() {
+            output.push_str(",\"caseRefs\":[");
+            for (case_index, case_ref) in finding.case_refs.iter().enumerate() {
+                if case_index > 0 {
+                    output.push(',');
+                }
+                json_string(&mut output, case_ref);
+            }
+            output.push(']');
+        }
+        output.push('}');
         output.push_str(",\"partialFingerprints\":{\"apollyon/v1\":");
         json_string(&mut output, &finding.fingerprint);
         output.push_str("},\"level\":");

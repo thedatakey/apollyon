@@ -4,11 +4,12 @@ mod json;
 mod sarif;
 mod text;
 
+pub(crate) use json::json_string;
 pub use json::render_json;
 pub use sarif::render_sarif;
 pub use text::{render_rules, render_text};
 
-const SCOPE_NOTE: &str = "Findings reflect a fixed set of bounded lexical rules only. Zero findings is not a security guarantee and does not imply the scanned code is safe.";
+const SCOPE_NOTE: &str = "Findings reflect a fixed set of bounded rules with AST validation when parsing succeeds and an explicit lexical fallback. Zero findings is not a security guarantee and does not imply the scanned code is safe.";
 
 fn control_properties(report: &crate::report::ScanReport) -> String {
     format!(",\"suppressed_findings\":{},\"disabled_findings\":{},\"new\":{},\"baselined\":{},\"total\":{},\"unselected_files\":{},\"missing_selected_files\":{},\"unsupported_selected_files\":{},\"ast_files\":{},\"lexical_files\":{},\"parse_fallback_files\":{}", report.suppressed_findings, report.disabled_findings, report.findings.len(), report.baselined_findings, report.total_findings, report.unselected_files, report.missing_selected_files, report.unsupported_selected_files, report.ast_files, report.lexical_files, report.parse_fallback_files)

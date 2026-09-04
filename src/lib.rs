@@ -1,8 +1,9 @@
 //! Apollyon reports bounded review candidates, never proof of whole-program security.
-//! The library API is pre-alpha; the existing CLI and findings v1 contract are preserved.
+//! The library API is pre-alpha; the CLI emits the documented findings v2 contract.
 
 mod ast;
 mod baseline;
+mod case;
 mod cli;
 mod config;
 mod display;
@@ -66,6 +67,31 @@ pub fn run(args: &[String]) -> i32 {
             }
             if let Some(existing) = existing_baseline {
                 baseline::apply(&mut report, &existing);
+            }
+            if let Some(directory) = &options.controls.cases_dir {
+                if !report.complete {
+                    report.add_error(
+                        "case records were not written because the scan is incomplete".into(),
+                    );
+                } else {
+                    let case_options = case::CaseOptions {
+                        directory: directory.clone(),
+                        repository: options
+                            .controls
+                            .repository
+                            .clone()
+                            .unwrap_or_else(|| "local".into()),
+                        revision: options
+                            .controls
+                            .revision
+                            .clone()
+                            .unwrap_or_else(|| "working-tree".into()),
+                    };
+                    if let Err(error) = case::write_candidates(&mut report, &case_options) {
+                        eprintln!("{}", safe_terminal(&error));
+                        return 2;
+                    }
+                }
             }
             let rendered = match options.format {
                 OutputFormat::Text => render_text(&report),

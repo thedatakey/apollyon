@@ -7,6 +7,14 @@ versioning after its first tagged release.
 
 ### Added
 
+- Phase 3 authorized `apollyon.case/v1` candidate generation for tainted
+  findings, with case references in text, JSON, and SARIF output.
+- A fail-closed Docker sandbox controller and narrow Python eval evidence
+  adapter covering reproduction, reviewable remediation, independent rerun,
+  regression checks, optional Z3 syntax proof, and bounded Atheris comparison.
+- A pinned Phase 3 tools-image recipe plus case, sandbox, and end-to-end fixture
+  documentation.
+
 - Phase 2 tree-sitter parsing with exactly pinned grammars for all 13 supported
   languages, AST validation for lexical candidates, and explicitly counted
   lexical fallback.
@@ -37,6 +45,9 @@ versioning after its first tagged release.
   `CSHARP_FORMATTER_PROXIMITY_LINES` (20) lines of the constructor.
 
 ### Changed
+
+- The structured-output scope sentence now describes AST validation and the
+  explicit lexical fallback; reviewed golden changes update only that field.
 
 - Minimum supported Rust version is 1.85 after adding the parser dependency set.
 - Phase 2 golden snapshots intentionally move to findings v2 and add engine,

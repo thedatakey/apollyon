@@ -34,3 +34,7 @@ the required engine, confidence, trace, and parser-coverage fields. A
 structural comparison removed only those documented additions (and normalized
 the text engine labels/coverage line) and confirmed that Phase 1 content stayed
 identical.
+
+Phase 3 intentionally updates only the machine-readable scope sentence so it
+describes AST validation and explicit lexical fallback. Existing snippet bytes,
+findings, counts, and ordering were preserved; no snapshots were regenerated.
