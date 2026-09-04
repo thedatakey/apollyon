@@ -77,6 +77,12 @@ jobs:
           python3 scripts/validate_integrations.py
           python3 scripts/validate_outputs.py target/debug/apollyon
           python3 scripts/validate_release.py
+          python3 -m unittest discover -s benchmarks -p 'test_*.py'
+          python3 tests/test_release_packaging.py
+          python3 scripts/validate_phase4.py
+          node --check vscode-apollyon/extension.js
+          node --check vscode-apollyon/sarif.js
+          node --test vscode-apollyon/test/*.test.js
           cargo +"$RUST_VERSION" package --locked
 
       - name: Validate minimum Rust version
@@ -86,7 +92,7 @@ jobs:
 
   build:
     needs: validate
-    timeout-minutes: 20
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -128,6 +134,27 @@ jobs:
           cargo +1.97.1 test --release --locked --target ${{ matrix.target }}
           cargo +1.97.1 build --release --locked --target ${{ matrix.target }}
 
+      - name: Verify reproducible Unix binary
+        if: matrix.family == 'unix'
+        shell: bash
+        run: |
+          CARGO_TARGET_DIR="$RUNNER_TEMP/rebuild" \
+            cargo +1.97.1 build --release --locked --target ${{ matrix.target }}
+          cmp \
+            "target/${{ matrix.target }}/release/apollyon" \
+            "$RUNNER_TEMP/rebuild/${{ matrix.target }}/release/apollyon"
+
+      - name: Verify reproducible Windows binary
+        if: matrix.family == 'windows'
+        shell: pwsh
+        run: |
+          $env:CARGO_TARGET_DIR = "$env:RUNNER_TEMP\rebuild"
+          cargo +1.97.1 build --release --locked --target ${{ matrix.target }}
+          if ((Get-FileHash "target\${{ matrix.target }}\release\apollyon.exe").Hash -ne
+              (Get-FileHash "$env:RUNNER_TEMP\rebuild\${{ matrix.target }}\release\apollyon.exe").Hash) {
+            throw "independent release binaries differ"
+          }
+
       - name: Smoke-test Unix binary
         if: matrix.family == 'unix'
         shell: bash
@@ -158,24 +185,26 @@ jobs:
         if: matrix.family == 'unix'
         shell: bash
         run: |
-          package="apollyon-${GITHUB_REF_NAME}-${{ matrix.target }}"
-          mkdir -p "dist/$package"
-          install -m 0755 "target/${{ matrix.target }}/release/apollyon" "dist/$package/"
-          install -m 0644 README.md LICENSE "dist/$package/"
-          COPYFILE_DISABLE=1 tar -C dist -czf "dist/$package.tar.gz" "$package"
-          rm -rf "dist/$package"
+          python3 scripts/package_release.py \
+            --binary "target/${{ matrix.target }}/release/apollyon" \
+            --target "${{ matrix.target }}" \
+            --version "${GITHUB_REF_NAME#v}" \
+            --format tar.gz \
+            --source-date-epoch "$(git show -s --format=%ct "$GITHUB_SHA")" \
+            --output-directory dist
 
       - name: Package Windows archive
         if: matrix.family == 'windows'
         shell: pwsh
         run: |
-          $package = "apollyon-$($env:GITHUB_REF_NAME)-${{ matrix.target }}"
-          $directory = Join-Path dist $package
-          New-Item -ItemType Directory -Force $directory | Out-Null
-          Copy-Item "target\${{ matrix.target }}\release\apollyon.exe" $directory
-          Copy-Item README.md, LICENSE $directory
-          Compress-Archive -Path $directory -DestinationPath "dist\$package.zip"
-          Remove-Item -Recurse -Force $directory
+          $epoch = git show -s --format=%ct $env:GITHUB_SHA
+          python scripts/package_release.py `
+            --binary "target\${{ matrix.target }}\release\apollyon.exe" `
+            --target "${{ matrix.target }}" `
+            --version $env:GITHUB_REF_NAME.Substring(1) `
+            --format zip `
+            --source-date-epoch $epoch `
+            --output-directory dist
 
       - name: Upload packaged target
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -212,14 +241,21 @@ jobs:
       - name: Validate assets and create checksums
         shell: bash
         run: |
-          asset_count="$(
-            find dist -maxdepth 1 -type f \
-              \( -name '*.tar.gz' -o -name '*.zip' \) | wc -l
-          )"
-          test "$asset_count" -eq 4
+          python3 scripts/create_checksums.py dist
           cd dist
-          sha256sum apollyon-* > SHA256SUMS
           sha256sum --check SHA256SUMS
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
+        with:
+          cosign-release: v3.1.2
+
+      - name: Sign checksum manifest with GitHub OIDC
+        shell: bash
+        run: |
+          cosign sign-blob --yes \
+            --bundle dist/SHA256SUMS.sigstore.json \
+            dist/SHA256SUMS
 
       - name: Generate release notes
         shell: bash
@@ -230,7 +266,7 @@ jobs:
       - name: Attest release assets
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: dist/*
+          subject-checksums: dist/SHA256SUMS
 
       - name: Publish GitHub prerelease
         env:
@@ -241,6 +277,7 @@ jobs:
             dist/*.tar.gz \
             dist/*.zip \
             dist/SHA256SUMS \
+            dist/SHA256SUMS.sigstore.json \
             --verify-tag \
             --fail-on-no-commits \
             --title "Apollyon $GITHUB_REF_NAME — public pre-alpha" \

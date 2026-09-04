@@ -10,7 +10,7 @@ never a whole-program security verdict.
 ```json
 {
   "schema": "apollyon.findings/v2",
-  "tool": { "name": "apollyon", "version": "0.2.0" },
+  "tool": { "name": "apollyon", "version": "0.3.0" },
   "scope": "Findings reflect a fixed set of bounded rules with AST validation when parsing succeeds and an explicit lexical fallback. Zero findings is not a security guarantee and does not imply the scanned code is safe.",
   "root": "project",
   "summary": {

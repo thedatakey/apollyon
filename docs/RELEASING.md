@@ -41,8 +41,8 @@ python3 scripts/validate_release.py
 4. Create an annotated or signed tag at that exact tested commit:
 
 ```sh
-git tag -a v0.2.0 -m "Apollyon v0.2.0"
-git push origin v0.2.0
+git tag -a v0.3.0 -m "Apollyon v0.3.0"
+git push origin v0.3.0
 ```
 
 ## Automated publication
@@ -55,14 +55,19 @@ agent contracts. It builds and smoke-tests four archives:
 - macOS Intel
 - Windows x86-64
 
-The final job verifies exactly four archives, creates `SHA256SUMS`, attaches
-GitHub artifact attestations, and publishes an unsigned public prerelease.
+Each platform rebuilds its binary in a second target directory and requires an
+identical digest. Normalized archive metadata uses the tagged commit time. The
+final job verifies exactly four archives, creates `SHA256SUMS`, signs that
+manifest with keyless Cosign 3.1.2, attaches signed GitHub SLSA build-provenance
+attestations for the four archive digests, and publishes a public prerelease.
 
 ## Verify the public release
 
-Download every asset on its native system. Verify `SHA256SUMS`, the GitHub
-attestation, `apollyon --version`, `apollyon rules`, and a JSON fixture scan.
-Confirm that release notes state the pre-alpha and unsigned-binary boundaries.
+Download every asset on its native system. Verify `SHA256SUMS`,
+`SHA256SUMS.sigstore.json`, the GitHub attestation, `apollyon --version`,
+`apollyon rules`, and a JSON fixture scan. The Cosign certificate identity must
+equal this repository's `release.yml` workflow at the immutable version tag.
+Confirm that release notes retain the pre-alpha and bounded-analysis language.
 
 If any check fails after publication, do not replace the release assets or move
 the tag. Document the problem and issue the next patch release.

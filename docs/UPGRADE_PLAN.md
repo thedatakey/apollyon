@@ -3,8 +3,8 @@
 This plan implements Tom Koentjes's supplied `CODEX_BUILD_INSTRUCTIONS.md`.
 It records sequencing and decisions needed to make that specification concrete.
 Work proceeds one phase at a time, with quality gates, a commit, and an
-end-of-phase report before the next phase. Later phases below are planned,
-not implemented capabilities.
+end-of-phase report before the next phase. The four implementation phases are
+now recorded below; public release execution remains a separate maintainer gate.
 
 ## Phase 0 — Library foundation
 
@@ -96,7 +96,10 @@ commit a target project. Follow [CASE_SCHEMA.md](CASE_SCHEMA.md).
 
 ## Phase 4 — Measured quality and distribution
 
-Define labeled corpus versions, language/rule mappings, and counting rules
+Implemented; see [the benchmark report](BENCHMARKS.md) and
+[the Phase 4 report](PHASE_4_REPORT.md).
+
+The implementation defines labeled corpus versions, language/rule mappings, and counting rules
 before benchmarking. Keep unsupported cases and analysis failures visible;
 publish measured precision/recall/false-positive rates with denominators and
 reproduction commands, not aggregate marketing estimates.
@@ -104,8 +107,8 @@ reproduction commands, not aggregate marketing estimates.
 Build and test the Action, pre-commit integration, and VS Code viewer against
 the established CLI/schema contract. Extend the existing release workflow
 with signing and verification; inspect its current checksums and attestations
-before adding overlapping machinery. Signed artifacts require actual release
-execution and verification before being described as delivered.
+before adding overlapping machinery. Signed artifacts still require actual
+release execution and verification before being described as delivered.
 
 ## Quality gates and checkpoints
 

@@ -1,0 +1,7 @@
+- id: apollyon
+  name: Apollyon source security review
+  description: Scan the repository with bounded AST and lexical review rules.
+  entry: apollyon scan . --fail-on high
+  language: rust
+  pass_filenames: false
+  always_run: true

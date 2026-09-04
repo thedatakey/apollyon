@@ -1,0 +1,74 @@
+name: Apollyon source scan
+description: Build the pinned action revision, scan a repository, and optionally upload SARIF.
+inputs:
+  path:
+    description: Repository-relative path to scan.
+    required: false
+    default: .
+  fail-on:
+    description: Minimum severity that fails the job (info, medium, high, or never).
+    required: false
+    default: high
+  baseline:
+    description: Optional repository-relative Apollyon baseline path.
+    required: false
+    default: ""
+  upload-sarif:
+    description: Upload the report to GitHub code scanning.
+    required: false
+    default: "true"
+outputs:
+  sarif-file:
+    description: Absolute path to the generated SARIF file.
+    value: ${{ steps.scan.outputs.sarif-file }}
+  exit-code:
+    description: Apollyon scan exit code.
+    value: ${{ steps.scan.outputs.exit-code }}
+runs:
+  using: composite
+  steps:
+    - name: Install tested Rust toolchain
+      shell: bash
+      run: |
+        rustup toolchain install 1.85.0 --profile minimal --no-self-update
+
+    - name: Build action revision
+      shell: bash
+      run: |
+        cargo +1.85.0 install --locked \
+          --path "${{ github.action_path }}/../../.." \
+          --root "$RUNNER_TEMP/apollyon-action"
+
+    - name: Run Apollyon
+      id: scan
+      shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_BASELINE: ${{ inputs.baseline }}
+      run: |
+        sarif="$RUNNER_TEMP/apollyon-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sarif"
+        arguments=(scan "$INPUT_PATH" --format sarif --output "$sarif" --fail-on "$INPUT_FAIL_ON")
+        if [[ -n "$INPUT_BASELINE" ]]; then
+          arguments+=(--baseline "$INPUT_BASELINE")
+        fi
+        set +e
+        "$RUNNER_TEMP/apollyon-action/bin/apollyon" "${arguments[@]}"
+        code=$?
+        set -e
+        echo "sarif-file=$sarif" >> "$GITHUB_OUTPUT"
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+
+    - name: Upload SARIF
+      if: ${{ inputs.upload-sarif == 'true' && always() }}
+      uses: github/codeql-action/upload-sarif@fddeee1a7ece751b577e409a89057319e3172939 # v4
+      with:
+        sarif_file: ${{ steps.scan.outputs.sarif-file }}
+        category: apollyon
+
+    - name: Enforce scan result
+      if: ${{ always() }}
+      shell: bash
+      env:
+        APOLLYON_EXIT_CODE: ${{ steps.scan.outputs.exit-code }}
+      run: exit "$APOLLYON_EXIT_CODE"

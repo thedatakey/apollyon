@@ -52,7 +52,7 @@ def main() -> int:
     for required in (
         f"releases/tag/v{version}",
         "SHA256SUMS",
-        "unsigned",
+        "Sigstore",
         "public pre-alpha",
     ):
         if required not in readme:
@@ -85,6 +85,12 @@ def main() -> int:
         errors.append("release job is missing narrowly scoped publication permissions")
     if "--verify-tag" not in workflow or "SHA256SUMS" not in workflow:
         errors.append("release workflow must verify its tag and publish checksums")
+    if "cosign sign-blob" not in workflow or "SHA256SUMS.sigstore.json" not in workflow:
+        errors.append("release workflow must sign the checksum manifest")
+    if "subject-checksums: dist/SHA256SUMS" not in workflow:
+        errors.append("release workflow must create signed SLSA provenance for archive digests")
+    if "Verify reproducible Unix binary" not in workflow or "Verify reproducible Windows binary" not in workflow:
+        errors.append("release workflow must compare independent platform rebuilds")
     if "merge-base --is-ancestor" not in workflow or "origin/main" not in workflow:
         errors.append("release workflow must require the tag commit to be on main")
     if "scripts/generate_release_notes.py" not in workflow:
@@ -97,7 +103,7 @@ def main() -> int:
         errors.append(str(error))
     else:
         expected_first_line = (
-            f"Apollyon {version} is the first public pre-alpha release of the "
+            f"Apollyon {version} is a public pre-alpha release of the "
             "evidence-first source-security scanner."
         )
         if release_notes.splitlines()[0] != expected_first_line:

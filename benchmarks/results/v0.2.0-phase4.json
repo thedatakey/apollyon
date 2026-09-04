@@ -1,0 +1,191 @@
+{
+  "corpora": {
+    "cve": {
+      "coverage": {
+        "ast_files": 2,
+        "baselined": 0,
+        "complete": true,
+        "disabled_findings": 0,
+        "excluded_directories": 0,
+        "excluded_files": 0,
+        "lexical_files": 0,
+        "missing_selected_files": 0,
+        "new": 4,
+        "parse_fallback_files": 0,
+        "scanned_files": 2,
+        "skipped_files": 0,
+        "skipped_symlinks": 0,
+        "supported_files": 2,
+        "suppressed_errors": 0,
+        "suppressed_findings": 0,
+        "total": 4,
+        "total_bytes": 37312,
+        "unselected_files": 0,
+        "unsupported_selected_files": 0
+      },
+      "metrics": [
+        {
+          "false_positive_rate": 1.0,
+          "fn": 0,
+          "fp": 1,
+          "language": "Python",
+          "precision": 0.5,
+          "recall": 1.0,
+          "rule_id": "APO004",
+          "tn": 0,
+          "tp": 1,
+          "unscored_findings": 0
+        }
+      ]
+    },
+    "juliet": {
+      "coverage": {
+        "ast_files": 9,
+        "baselined": 0,
+        "complete": true,
+        "disabled_findings": 0,
+        "excluded_directories": 0,
+        "excluded_files": 0,
+        "lexical_files": 0,
+        "missing_selected_files": 0,
+        "new": 25,
+        "parse_fallback_files": 0,
+        "scanned_files": 9,
+        "skipped_files": 0,
+        "skipped_symlinks": 0,
+        "supported_files": 9,
+        "suppressed_errors": 0,
+        "suppressed_findings": 0,
+        "total": 25,
+        "total_bytes": 27604,
+        "unselected_files": 0,
+        "unsupported_selected_files": 0
+      },
+      "metrics": [
+        {
+          "false_positive_rate": 1.0,
+          "fn": 0,
+          "fp": 3,
+          "language": "C",
+          "precision": 0.5,
+          "recall": 1.0,
+          "rule_id": "APO001",
+          "tn": 0,
+          "tp": 3,
+          "unscored_findings": 3
+        },
+        {
+          "false_positive_rate": 1.0,
+          "fn": 0,
+          "fp": 3,
+          "language": "C",
+          "precision": 0.5,
+          "recall": 1.0,
+          "rule_id": "APO002",
+          "tn": 0,
+          "tp": 3,
+          "unscored_findings": 0
+        },
+        {
+          "false_positive_rate": 0.0,
+          "fn": 3,
+          "fp": 0,
+          "language": "C",
+          "precision": null,
+          "recall": 0.0,
+          "rule_id": "APO005",
+          "tn": 3,
+          "tp": 0,
+          "unscored_findings": 0
+        }
+      ]
+    },
+    "owasp": {
+      "coverage": {
+        "ast_files": 2740,
+        "baselined": 0,
+        "complete": true,
+        "disabled_findings": 0,
+        "excluded_directories": 0,
+        "excluded_files": 0,
+        "lexical_files": 0,
+        "missing_selected_files": 0,
+        "new": 1162,
+        "parse_fallback_files": 0,
+        "scanned_files": 2740,
+        "skipped_files": 0,
+        "skipped_symlinks": 0,
+        "supported_files": 2740,
+        "suppressed_errors": 0,
+        "suppressed_findings": 0,
+        "total": 1162,
+        "total_bytes": 11448786,
+        "unselected_files": 0,
+        "unsupported_selected_files": 0
+      },
+      "metrics": [
+        {
+          "false_positive_rate": 0.24,
+          "fn": 93,
+          "fp": 30,
+          "language": "Java",
+          "precision": 0.52381,
+          "recall": 0.261905,
+          "rule_id": "APO005",
+          "tn": 95,
+          "tp": 33,
+          "unscored_findings": 0
+        },
+        {
+          "false_positive_rate": 0.0,
+          "fn": 98,
+          "fp": 0,
+          "language": "Java",
+          "precision": 1.0,
+          "recall": 0.621622,
+          "rule_id": "APO008",
+          "tn": 223,
+          "tp": 161,
+          "unscored_findings": 0
+        },
+        {
+          "false_positive_rate": 0.0,
+          "fn": 25,
+          "fp": 0,
+          "language": "Java",
+          "precision": 1.0,
+          "recall": 0.885321,
+          "rule_id": "APO009",
+          "tn": 275,
+          "tp": 193,
+          "unscored_findings": 0
+        },
+        {
+          "false_positive_rate": 0.562963,
+          "fn": 45,
+          "fp": 76,
+          "language": "Java",
+          "precision": 0.536585,
+          "recall": 0.661654,
+          "rule_id": "APO012",
+          "tn": 59,
+          "tp": 88,
+          "unscored_findings": 557
+        }
+      ]
+    }
+  },
+  "counting_unit": {
+    "cve": "one advisory-linked affected/fixed source revision",
+    "juliet": "one labeled sink line in selected bad/good functions",
+    "owasp": "one labeled BenchmarkTest file per mapped rule"
+  },
+  "input_report_sha256": {
+    "cve": "0856768f3b4b642daa2f9a42a52acadcb06f21486b5c3a514ec38ec059957a2a",
+    "juliet": "49173549256e68f07ede3972fdbef4677c6d3552ab17e5d242cc71521ace4594",
+    "owasp": "a650586176ee1849a7b6c7b73b1af6d01a1c74e7bbfcf4fceda2906997846ddf"
+  },
+  "scanner_revision": "54bedb07e2c10c7ca34c556f418318853fb30610",
+  "scanner_version": "0.2.0",
+  "schema": "apollyon.benchmarks/results/v1"
+}
