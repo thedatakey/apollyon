@@ -38,3 +38,8 @@ identical.
 Phase 3 intentionally updates only the machine-readable scope sentence so it
 describes AST validation and explicit lexical fallback. Existing snippet bytes,
 findings, counts, and ordering were preserved; no snapshots were regenerated.
+
+Phase 4 intentionally updates only the reported tool version from 0.2.0 to
+0.3.0 in the JSON and SARIF snapshots. Existing snippets, findings, scope,
+counts, paths, fingerprints, and ordering were preserved; no scan output was
+regenerated or exported.

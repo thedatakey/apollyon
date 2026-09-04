@@ -5,7 +5,17 @@ versioning after its first tagged release.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-04
+
 ### Added
+
+- Measured OWASP Benchmark, NIST Juliet/SARD, and advisory-linked CVE results
+  with pinned inputs, exact denominators, deterministic scoring, and public
+  reproduction commands.
+- A composite GitHub Action with SARIF upload, severity threshold, and baseline
+  support; a Rust pre-commit hook; and a source VS Code SARIF diagnostics viewer.
+- Deterministic release packaging, independent binary rebuild comparisons,
+  keyless Sigstore signing of `SHA256SUMS`, and signed GitHub SLSA provenance.
 
 - Phase 3 authorized `apollyon.case/v1` candidate generation for tainted
   findings, with case references in text, JSON, and SARIF output.

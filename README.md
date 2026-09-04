@@ -22,7 +22,7 @@
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
   <a href="#see-it-work">See a real scan</a> ·
-  <a href="https://github.com/thedatakey/apollyon/releases/tag/v0.2.0">Download v0.2.0</a> ·
+  <a href="https://github.com/thedatakey/apollyon/releases/tag/v0.3.0">Download v0.3.0</a> ·
   <a href="docs/AGENT_INTEGRATIONS.md">Coding-agent setup</a> ·
   <a href="#current-capabilities">Supported rules</a>
 </p>
@@ -42,7 +42,7 @@ with errors and whether the scan completed. Use terminal text for local review,
 versioned JSON v2 with engine, confidence, and source-to-sink traces for coding agents and automation, or SARIF 2.1.0 for CI and
 GitHub code scanning.
 
-**Status: public pre-alpha v0.2.0.** Apollyon currently implements twelve bounded
+**Status: public pre-alpha v0.3.0.** Apollyon currently implements twelve bounded
 review rules with AST validation, bounded taint traces, and an opt-in case
 workflow for one Python eval boundary. Findings require human validation; a complete scan is not proof
 that a project is secure.
@@ -55,23 +55,23 @@ Requires Rust 1.85 or newer:
 
 ```sh
 cargo install --locked --git https://github.com/thedatakey/apollyon \
-  --tag v0.2.0 apollyon
+  --tag v0.3.0 apollyon
 ```
 
 ### Or download a prebuilt binary
 
-The v0.2.0 prerelease provides these archives:
+The v0.3.0 prerelease provides these archives:
 
 | Platform | Asset |
 | --- | --- |
-| Linux x86-64 | [`apollyon-v0.2.0-x86_64-unknown-linux-musl.tar.gz`](https://github.com/thedatakey/apollyon/releases/download/v0.2.0/apollyon-v0.2.0-x86_64-unknown-linux-musl.tar.gz) |
-| macOS Apple Silicon | [`apollyon-v0.2.0-aarch64-apple-darwin.tar.gz`](https://github.com/thedatakey/apollyon/releases/download/v0.2.0/apollyon-v0.2.0-aarch64-apple-darwin.tar.gz) |
-| macOS Intel | [`apollyon-v0.2.0-x86_64-apple-darwin.tar.gz`](https://github.com/thedatakey/apollyon/releases/download/v0.2.0/apollyon-v0.2.0-x86_64-apple-darwin.tar.gz) |
-| Windows x86-64 | [`apollyon-v0.2.0-x86_64-pc-windows-msvc.zip`](https://github.com/thedatakey/apollyon/releases/download/v0.2.0/apollyon-v0.2.0-x86_64-pc-windows-msvc.zip) |
+| Linux x86-64 | [`apollyon-v0.3.0-x86_64-unknown-linux-musl.tar.gz`](https://github.com/thedatakey/apollyon/releases/download/v0.3.0/apollyon-v0.3.0-x86_64-unknown-linux-musl.tar.gz) |
+| macOS Apple Silicon | [`apollyon-v0.3.0-aarch64-apple-darwin.tar.gz`](https://github.com/thedatakey/apollyon/releases/download/v0.3.0/apollyon-v0.3.0-aarch64-apple-darwin.tar.gz) |
+| macOS Intel | [`apollyon-v0.3.0-x86_64-apple-darwin.tar.gz`](https://github.com/thedatakey/apollyon/releases/download/v0.3.0/apollyon-v0.3.0-x86_64-apple-darwin.tar.gz) |
+| Windows x86-64 | [`apollyon-v0.3.0-x86_64-pc-windows-msvc.zip`](https://github.com/thedatakey/apollyon/releases/download/v0.3.0/apollyon-v0.3.0-x86_64-pc-windows-msvc.zip) |
 
-The binaries are currently unsigned. Verify the archive against the published
-[`SHA256SUMS`](https://github.com/thedatakey/apollyon/releases/download/v0.2.0/SHA256SUMS)
-and GitHub build attestation before use. See the
+Verify the archive against the published
+[`SHA256SUMS`](https://github.com/thedatakey/apollyon/releases/download/v0.3.0/SHA256SUMS),
+its keyless Sigstore bundle, and GitHub SLSA build-provenance attestation before use. See the
 [installation guide](docs/INSTALL.md) for exact verification commands and
 platform notes.
 
@@ -155,15 +155,20 @@ semantic coverage. Run `apollyon rules` for the executable rule registry.
 | `APO004` | high | Dynamic code execution | JavaScript, TypeScript, Python, PHP, Ruby |
 | `APO005` | medium | Operating-system command execution | C, C++, C#, Go, Java, Kotlin, JavaScript, TypeScript, PHP, Python, Ruby, Rust, Swift |
 | `APO006` | high | Unsafe deserialization boundary | C#, Java, Kotlin, PHP, Python, Ruby |
+| `APO007` | high | Embedded credential material | All supported languages |
+| `APO008` | medium | Weak cryptographic primitive | All supported languages |
+| `APO009` | info | Non-cryptographic randomness | C, C++, Java, Kotlin, JavaScript, TypeScript, PHP, Python |
+| `APO010` | high | Disabled TLS verification | C, C++, Go, Java, Kotlin, JavaScript, TypeScript, PHP, Python |
+| `APO011` | medium | Dynamically assembled SQL | All supported languages |
+| `APO012` | medium | Variable filesystem path | All supported languages |
 
 For a static workspace snapshot, Apollyon skips symbolic links, ignores common
 dependency/build directories, supports explicit file and directory exclusions,
 uses bounded traversal/input/output limits, emits root-relative paths, and
 makes decoding, lexical, traversal, and limit failures explicit.
 
-Phase 1 adds rules for embedded credentials, weak crypto, non-cryptographic
-randomness, disabled TLS verification, SQL string construction, and variable
-filesystem paths (APO007–APO012). See [rule boundaries](docs/RULES.md).
+See [rule boundaries](docs/RULES.md) for exact patterns, language coverage, and
+known limits.
 
 For adoption controls:
 
@@ -225,6 +230,48 @@ Consumers must inspect both the exit code and structured `summary.complete`.
 Exit `0` can still include candidates when no `--fail-on` threshold was set.
 The complete schema is documented in [the findings contract](docs/FINDINGS_SCHEMA.md).
 
+## GitHub Action and editor adoption
+
+The composite Action builds the exact referenced Apollyon revision, supports a
+baseline and severity threshold, emits SARIF, and can upload it to GitHub code
+scanning:
+
+```yaml
+permissions:
+  contents: read
+  security-events: write
+steps:
+  - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+    with:
+      persist-credentials: false
+  - uses: thedatakey/apollyon/.github/actions/apollyon@v0.3.0
+    with:
+      path: .
+      fail-on: high
+      baseline: apollyon-baseline.json
+```
+
+For pre-commit, add the released hook to `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/thedatakey/apollyon
+    rev: v0.3.0
+    hooks:
+      - id: apollyon
+```
+
+Then install it in one line:
+
+```sh
+pre-commit install && pre-commit run apollyon --all-files
+```
+
+The source VS Code extension in [`vscode-apollyon`](vscode-apollyon) renders an
+`apollyon.sarif` report as inline diagnostics. The full measured public-corpus
+results and exact reproduction commands are in
+[`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
+
 ## Coding-agent integration
 
 The executable does not depend on an AI tool. Portable guidance layers the same
@@ -284,8 +331,7 @@ or authorization to execute code.
 
 ## Limits and scientific boundary
 
-Apollyon uses tree-sitter parsing and bounded same-file taint models; it is not a whole-program analyzer. Macro expansion, dynamic dispatch/imports, reflection, complex aliasing, framework behavior, and whole-program data flow remain outside current guarantees. Files that fail to parse use an explicitly counted lexical fallback. It has
-no representative benchmark yet, so no accuracy or detection-rate claim is made.
+Apollyon uses tree-sitter parsing and bounded same-file taint models; it is not a whole-program analyzer. Macro expansion, dynamic dispatch/imports, reflection, complex aliasing, framework behavior, and whole-program data flow remain outside current guarantees. Files that fail to parse use an explicitly counted lexical fallback. Public-corpus measurements cover only the rule/language pairs and fixed revisions documented in [the benchmark report](docs/BENCHMARKS.md); they do not support a general accuracy claim.
 
 For Turing-complete programs, Rice's theorem rules out a general decision
 procedure for arbitrary non-trivial semantic properties. Apollyon therefore
@@ -302,8 +348,8 @@ running target builds, tests, hooks, package managers, or dependencies.
 The scanner is now a library with a thin CLI entry point. See
 [the architecture](docs/ARCHITECTURE.md) for module responsibilities and the
 scan pipeline, and [the phased upgrade plan](docs/UPGRADE_PLAN.md) for the
-next development checkpoints. Phase 0 preserves the existing CLI and findings
-v1 output; committed golden tests compare exact output bytes.
+implementation record. Findings v2 is the current structured contract;
+committed golden tests compare exact CLI output bytes.
 
 ```sh
 cargo fmt --all --check
@@ -315,12 +361,16 @@ python3 scripts/validate_agents.py
 python3 scripts/validate_integrations.py
 python3 scripts/validate_outputs.py target/debug/apollyon
 python3 scripts/validate_release.py
+python3 scripts/validate_phase4.py
+python3 -m unittest discover -s benchmarks -p 'test_*.py'
+python3 tests/test_release_packaging.py
+node --test vscode-apollyon/test/*.test.js
 ```
 
 GitHub Actions runs the full gate on Linux and portable test builds on macOS
 and Windows. Tagged releases additionally validate version identity, build four
-native archives, smoke-test each executable, publish SHA-256 checksums, and
-attach build provenance.
+native archives twice, compare binary digests, smoke-test each executable,
+publish a signed SHA-256 manifest, and attach signed SLSA build provenance.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and the
 [code of conduct](CODE_OF_CONDUCT.md) before contributing or reporting an issue.
@@ -330,11 +380,10 @@ Maintainer release steps are documented in [docs/RELEASING.md](docs/RELEASING.md
 
 - Broader AST queries and framework-specific taint models
 - Broader Git ignore syntax and richer changed-file analysis
-- Signed/notarized binaries and package-manager distribution
-- Reachability analysis and safe fuzz-harness adapters
-- Kani, CBMC, and Z3 adapters with explicit bounds and tool versions
-- Reviewable remediation proposals and regression gates
-- Reproducible build metadata and additional platform hardening
+- Platform notarization and package-manager distribution
+- More evidence adapters beyond the current bounded Python eval workflow
+- Kani or CBMC adapters for memory properties
+- Broader public-corpus coverage across rules and languages
 
 Automatic whole-program migration, obfuscation, enclaves, and FHE remain
 research tracks. They will not be advertised as working until threat models,

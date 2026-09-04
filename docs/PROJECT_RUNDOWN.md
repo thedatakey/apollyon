@@ -17,8 +17,8 @@ Build a free, open-source cyber-reasoning system that discovers, validates, and 
 ## Explicitly deferred
 
 - Automatic C/C++-to-Rust migration
-- Kani, CBMC, and Z3 execution adapters
+- Kani and CBMC execution adapters
 - Enclave/FHE integrations
 - Any automatic obfuscation pipeline
 
-These need dedicated threat models, reproducible test fixtures, and acceptance criteria before implementation.
+These need dedicated threat models, reproducible test fixtures, and acceptance criteria before implementation. Phase 3 now includes a narrow Z3 syntax-property adapter; it does not replace future memory-property work.

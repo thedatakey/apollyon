@@ -39,7 +39,7 @@ def render_release_notes(version: str, changelog: str) -> str:
     changes = extract_changes(version, changelog)
     sections = (
         (
-            f"Apollyon {version} is the first public pre-alpha release of the "
+            f"Apollyon {version} is a public pre-alpha release of the "
             "evidence-first source-security scanner."
         ),
         (
@@ -53,9 +53,10 @@ def render_release_notes(version: str, changelog: str) -> str:
             "the executable, README, and MIT license."
         ),
         (
-            "These binaries are currently unsigned. Verify the archive against "
-            "`SHA256SUMS`. Build provenance is attached through GitHub artifact "
-            "attestations and can be checked with `gh attestation verify`."
+            "Verify each archive against `SHA256SUMS`, then authenticate that "
+            "manifest with `SHA256SUMS.sigstore.json`. Signed SLSA build "
+            "provenance is attached through GitHub artifact attestations and "
+            "can be checked with `gh attestation verify`."
         ),
     )
     return "\n\n".join(sections) + "\n"

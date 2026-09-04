@@ -41,6 +41,16 @@ jobs:
         run: python3 scripts/validate_outputs.py target/debug/apollyon
       - name: Validate public release contract
         run: python3 scripts/validate_release.py
+      - name: Validate benchmark scoring and release packaging
+        run: |
+          python3 -m unittest discover -s benchmarks -p 'test_*.py'
+          python3 tests/test_release_packaging.py
+          python3 scripts/validate_phase4.py
+      - name: Validate VS Code SARIF viewer
+        run: |
+          node --check vscode-apollyon/extension.js
+          node --check vscode-apollyon/sarif.js
+          node --test vscode-apollyon/test/*.test.js
 
   msrv:
     runs-on: ubuntu-24.04
@@ -72,3 +82,20 @@ jobs:
         run: rustup toolchain install 1.97.1 --profile minimal --no-self-update
       - name: Test portable build
         run: cargo +1.97.1 test --locked --all-targets --all-features
+
+  action:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Exercise local composite Action
+        uses: ./.github/actions/apollyon
+        with:
+          path: tests/fixtures/manual-project
+          fail-on: never
+          upload-sarif: "false"

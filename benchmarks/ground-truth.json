@@ -1,0 +1,27 @@
+{
+  "schema": "apollyon.benchmarks/ground-truth/v1",
+  "juliet": [
+    {"rule_id":"APO002","language":"C","path":"CWE122_Heap_Based_Buffer_Overflow/s01/CWE122_Heap_Based_Buffer_Overflow__char_type_overrun_memcpy_01.c","line":42,"positive":true},
+    {"rule_id":"APO002","language":"C","path":"CWE122_Heap_Based_Buffer_Overflow/s01/CWE122_Heap_Based_Buffer_Overflow__char_type_overrun_memcpy_01.c","line":63,"positive":false},
+    {"rule_id":"APO001","language":"C","path":"CWE122_Heap_Based_Buffer_Overflow/s06/CWE122_Heap_Based_Buffer_Overflow__c_CWE193_char_cpy_01.c","line":38,"positive":true},
+    {"rule_id":"APO001","language":"C","path":"CWE122_Heap_Based_Buffer_Overflow/s06/CWE122_Heap_Based_Buffer_Overflow__c_CWE193_char_cpy_01.c","line":59,"positive":false},
+    {"rule_id":"APO002","language":"C","path":"CWE122_Heap_Based_Buffer_Overflow/s07/CWE122_Heap_Based_Buffer_Overflow__c_CWE805_char_memcpy_01.c","line":36,"positive":true},
+    {"rule_id":"APO002","language":"C","path":"CWE122_Heap_Based_Buffer_Overflow/s07/CWE122_Heap_Based_Buffer_Overflow__c_CWE805_char_memcpy_01.c","line":61,"positive":false},
+    {"rule_id":"APO002","language":"C","path":"CWE122_Heap_Based_Buffer_Overflow/s09/CWE122_Heap_Based_Buffer_Overflow__c_CWE806_char_memcpy_01.c","line":34,"positive":true},
+    {"rule_id":"APO002","language":"C","path":"CWE122_Heap_Based_Buffer_Overflow/s09/CWE122_Heap_Based_Buffer_Overflow__c_CWE806_char_memcpy_01.c","line":57,"positive":false},
+    {"rule_id":"APO001","language":"C","path":"CWE122_Heap_Based_Buffer_Overflow/s10/CWE122_Heap_Based_Buffer_Overflow__c_dest_char_cpy_01.c","line":36,"positive":true},
+    {"rule_id":"APO001","language":"C","path":"CWE122_Heap_Based_Buffer_Overflow/s10/CWE122_Heap_Based_Buffer_Overflow__c_dest_char_cpy_01.c","line":60,"positive":false},
+    {"rule_id":"APO001","language":"C","path":"CWE122_Heap_Based_Buffer_Overflow/s10/CWE122_Heap_Based_Buffer_Overflow__c_src_char_cpy_01.c","line":34,"positive":true},
+    {"rule_id":"APO001","language":"C","path":"CWE122_Heap_Based_Buffer_Overflow/s10/CWE122_Heap_Based_Buffer_Overflow__c_src_char_cpy_01.c","line":56,"positive":false},
+    {"rule_id":"APO005","language":"C","path":"CWE78_OS_Command_Injection/s02/CWE78_OS_Command_Injection__char_console_system_01.c","line":67,"positive":true},
+    {"rule_id":"APO005","language":"C","path":"CWE78_OS_Command_Injection/s02/CWE78_OS_Command_Injection__char_console_system_01.c","line":87,"positive":false},
+    {"rule_id":"APO005","language":"C","path":"CWE78_OS_Command_Injection/s02/CWE78_OS_Command_Injection__char_environment_system_01.c","line":61,"positive":true},
+    {"rule_id":"APO005","language":"C","path":"CWE78_OS_Command_Injection/s02/CWE78_OS_Command_Injection__char_environment_system_01.c","line":81,"positive":false},
+    {"rule_id":"APO005","language":"C","path":"CWE78_OS_Command_Injection/s03/CWE78_OS_Command_Injection__char_file_system_01.c","line":69,"positive":true},
+    {"rule_id":"APO005","language":"C","path":"CWE78_OS_Command_Injection/s03/CWE78_OS_Command_Injection__char_file_system_01.c","line":89,"positive":false}
+  ],
+  "cve": [
+    {"rule_id":"APO004","language":"Python","path":"CVE-2026-42079-vulnerable.py","line":185,"positive":true},
+    {"rule_id":"APO004","language":"Python","path":"CVE-2026-42079-fixed.py","line":186,"positive":false}
+  ]
+}

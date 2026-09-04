@@ -1,0 +1,38 @@
+{
+  "name": "apollyon-sarif",
+  "displayName": "Apollyon SARIF",
+  "description": "Render Apollyon SARIF findings as inline VS Code diagnostics.",
+  "version": "0.1.0",
+  "publisher": "thedatakey",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Linters"],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:apollyon.refreshSarif"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "apollyon.refreshSarif",
+        "title": "Apollyon: Refresh SARIF Diagnostics"
+      }
+    ],
+    "configuration": {
+      "title": "Apollyon",
+      "properties": {
+        "apollyon.sarifPath": {
+          "type": "string",
+          "default": "apollyon.sarif",
+          "description": "Workspace-relative Apollyon SARIF report path."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}
