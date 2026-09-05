@@ -13,7 +13,7 @@ keywords = ["security", "static-analysis", "sast", "sarif", "code-scanning"]
 categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
-tree-sitter = "=0.25.10"
+tree-sitter = "=0.26.13"
 tree-sitter-c = "=0.24.2"
 tree-sitter-c-sharp = "=0.23.5"
 tree-sitter-cpp = "=0.23.4"
