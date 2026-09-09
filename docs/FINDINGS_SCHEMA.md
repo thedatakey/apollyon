@@ -10,7 +10,7 @@ never a whole-program security verdict.
 ```json
 {
   "schema": "apollyon.findings/v2",
-  "tool": { "name": "apollyon", "version": "0.3.0" },
+  "tool": { "name": "apollyon", "version": "0.4.0" },
   "scope": "Findings reflect a fixed set of bounded rules with AST validation when parsing succeeds and an explicit lexical fallback. Zero findings is not a security guarantee and does not imply the scanned code is safe.",
   "root": "project",
   "summary": {
@@ -63,20 +63,28 @@ source-to-sink flows.
   and relative to it.
 - `engine` is `ast` when tree-sitter parsed the file and validated the relevant
   expression/call, otherwise `lexical` after explicit fallback.
-- `confidence` is `candidate` or `tainted`. `tainted` means a modeled source
+- `confidence` is `candidate`, `reachable`, or `tainted`. `tainted` means a modeled remote source
   reached this sink within the recorded scope without a modeled sanitizer.
   It does not mean confirmed exploitability.
-- `trace` is empty for candidates; tainted findings contain ordered `source`,
+- `trace` is empty for candidates; reachable and tainted findings contain ordered `source`,
   optional `propagation`/`call`, and `sink` steps, capped at ten.
 - `fingerprint` is stable across unrelated line insertions; see [CONFIG.md](CONFIG.md).
 - `case_refs` is optional and appears only when authorized Phase 3 candidate
   case files were requested with `--cases-dir` and `--authorized`.
 - `snippet` is null unless requested and is always null for secret-candidate lines.
 - `ast_files`, `lexical_files`, and `parse_fallback_files` expose engine coverage.
-  Syntax errors, parser timeouts, grammar mismatch, more than 1,000,000 AST
-  nodes, or more than 16 MiB of repeated inspected-node text trigger lexical
-  fallback. The 2 MiB source-file bound still applies.
-- `total = new + baselined + suppressed_findings + disabled_findings`.
+  Parser timeouts, grammar mismatch, more than 1,000,000 AST nodes, or more
+  than 16 MiB of captured call text trigger whole-file lexical fallback.
+  Recoverable syntax errors retain valid AST expressions and use lexical
+  analysis for affected expressions. Optional nonzero `error_nodes` counts
+  parser error/missing nodes; `ast_files` includes recovered trees.
+  The 2 MiB source-file bound still applies.
+- `total = new + baselined + suppressed_findings + disabled_findings + truncated_findings`.
+  Optional `truncated_findings` defaults to zero. At the 10,000-output limit,
+  later files are still analyzed within the other resource limits; dropped
+  findings are counted and the report remains incomplete (exit 3).
+- Optional top-level `notes` contains bounded informational diagnostics, with
+  no effect on completeness. It is omitted when empty.
 - Selection and exclusion fields must be inspected when interpreting coverage.
 - Decoding, traversal, lexical-state, resource, and limit failures make
   `complete` false and produce exit 3. Parser fallback alone is a supported
@@ -88,7 +96,8 @@ SARIF remains version 2.1.0. Results include `properties.engine`,
 `properties.confidence`, and `properties.trace`, plus the stable fingerprint in
 `partialFingerprints["apollyon/v1"]`. Invocation properties contain scan,
 selection, filter, and parser coverage. Tool notifications contain incomplete
-scan errors. Snippets remain opt-in.
+scan errors and informational notes (`level: note`). Nonzero error-node and
+truncation counts appear in invocation properties. Snippets remain opt-in.
 
 ## Difference from `apollyon.findings/v1`
 
@@ -103,3 +112,13 @@ not change when the analysis engine was added.
 The historical v1 contract had no engine/confidence/trace fields. Its original
 findings had only rule/severity/message/path/line/snippet; Phase 1 additively
 introduced fingerprint and adoption counters while retaining the v1 discriminator.
+
+## Additive 0.4.0 development fields
+
+Findings include `file_class`. `confidence` adds `reachable` for modeled local
+sources; `tainted` is used for modeled remote sources. Nonempty traces include
+`trace_depth` and `trace_truncated`. Summary `filtered_findings` counts display
+filters when nonzero. Intentionally lexical config files count in `lexical_files`
+but not `parse_fallback_files`; the latter counts source parser fallbacks.
+Dependency output uses the separate `apollyon.dependencies/v1` schema and exposes
+the bounded snapshot scope. See [the upgrade guide](AUDIT_UPGRADE.md).

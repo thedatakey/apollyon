@@ -49,8 +49,16 @@ pub fn render_sarif(report: &ScanReport) -> String {
         json_string(&mut output, error);
         output.push_str("}}");
     }
+    for (index, note) in report.notes.iter().enumerate() {
+        if index > 0 || !report.errors.is_empty() {
+            output.push(',');
+        }
+        output.push_str("{\"level\":\"note\",\"message\":{\"text\":");
+        json_string(&mut output, note);
+        output.push_str("}}");
+    }
     if report.suppressed_errors > 0 {
-        if !report.errors.is_empty() {
+        if !report.errors.is_empty() || !report.notes.is_empty() {
             output.push(',');
         }
         output.push_str("{\"level\":\"warning\",\"message\":{\"text\":");
@@ -86,6 +94,16 @@ pub fn render_sarif(report: &ScanReport) -> String {
         json_string(&mut output, finding.engine.as_str());
         output.push_str(",\"confidence\":");
         json_string(&mut output, finding.confidence.as_str());
+        output.push_str(",\"file_class\":");
+        json_string(&mut output, crate::workflow::classification(&finding.path));
+        if !finding.trace.is_empty() {
+            let _ = write!(
+                output,
+                ",\"trace_depth\":{},\"trace_truncated\":{}",
+                finding.trace_depth,
+                finding.trace_depth > finding.trace.len()
+            );
+        }
         output.push_str(",\"trace\":[");
         for (step_index, step) in finding.trace.iter().enumerate() {
             if step_index > 0 {

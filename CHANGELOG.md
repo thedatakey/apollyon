@@ -3,6 +3,15 @@
 All notable changes will be documented here. The project follows semantic
 versioning after its first tagged release.
 
+## [0.4.0] — Unreleased
+
+- Complete the bounded audit follow-up: deterministic parallel scans, configurable limits,
+  per-path policy, source-confidence tiers, trace depth, and expanded rules.
+- Add init/explain/watch/fix workflows, config scanning, Markdown/CI output,
+  offline dependency matching, and pinned precision regression fixtures.
+- Add reproducible native npm package and Homebrew formula generation.
+- Preserve redaction, explicit incomplete coverage, and isolated validation.
+
 ## [Unreleased]
 
 ## [0.3.0] - 2026-09-04

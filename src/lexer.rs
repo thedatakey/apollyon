@@ -14,6 +14,7 @@ pub(crate) enum Language {
     Ruby,
     Rust,
     Swift,
+    Config,
 }
 
 #[derive(Default)]
@@ -27,6 +28,10 @@ pub(crate) struct LexState {
 }
 
 pub(crate) fn language_for(path: &Path) -> Option<Language> {
+    let name = path.file_name()?.to_str()?;
+    if name == ".env" || name.starts_with(".env.") || name == "Dockerfile" {
+        return Some(Language::Config);
+    }
     let extension = path.extension()?.to_str()?.to_ascii_lowercase();
     match extension.as_str() {
         "c" | "cc" | "cpp" | "cxx" | "h" | "hh" | "hpp" | "hxx" => Some(Language::CFamily),
@@ -39,6 +44,10 @@ pub(crate) fn language_for(path: &Path) -> Option<Language> {
         "rb" | "rake" => Some(Language::Ruby),
         "rs" => Some(Language::Rust),
         "swift" => Some(Language::Swift),
+        "json" | "yaml" | "yml" | "toml" | "tf" | "tfvars" | "ini" | "conf" | "sh" | "bash" => {
+            Some(Language::Config)
+        }
+        "vue" | "svelte" | "astro" => Some(Language::JavaScript),
         _ => None,
     }
 }
@@ -81,11 +90,17 @@ fn is_rust_lifetime(chars: &[char], index: usize) -> bool {
 }
 
 fn uses_slash_comments(language: Language) -> bool {
-    !matches!(language, Language::Python | Language::Ruby)
+    !matches!(
+        language,
+        Language::Python | Language::Ruby | Language::Config
+    )
 }
 
 fn uses_hash_comments(language: Language) -> bool {
-    matches!(language, Language::Php | Language::Python | Language::Ruby)
+    matches!(
+        language,
+        Language::Php | Language::Python | Language::Ruby | Language::Config
+    )
 }
 
 fn supports_nested_block_comments(language: Language) -> bool {
@@ -187,6 +202,20 @@ pub(crate) struct LineView {
     pub comments: String,
 }
 
+pub(crate) fn config_line(line: &str) -> LineView {
+    let mut view = lex_line(line, Language::Config, &mut LexState::default());
+    if let Some((left, right)) = view.visible.split_once('=') {
+        let right = right.trim();
+        if view.literals.is_empty() && !right.is_empty() && !right.contains(char::is_whitespace) {
+            view.literals.push(right.to_owned());
+        }
+        if left.trim().starts_with("export ") {
+            view.visible = view.visible.trim_start_matches("export ").to_owned();
+        }
+    }
+    view
+}
+
 pub(crate) fn lex_line(line: &str, language: Language, state: &mut LexState) -> LineView {
     let chars: Vec<char> = line.chars().collect();
     let mut output = String::with_capacity(line.len());
@@ -262,7 +291,12 @@ pub(crate) fn lex_line(line: &str, language: Language, state: &mut LexState) -> 
             kinds[start..index].fill(2);
             continue;
         }
-        if uses_hash_comments(language) && chars[index] == '#' {
+        if (uses_hash_comments(language) && chars[index] == '#')
+            || (language == Language::JavaScript
+                && index == 0
+                && chars[index] == '#'
+                && chars.get(index + 1) == Some(&'!'))
+        {
             output.push(' ');
             kinds[index..].fill(2);
             break;
@@ -388,6 +422,41 @@ pub(crate) fn lex_line(line: &str, language: Language, state: &mut LexState) -> 
 
 pub(crate) fn is_identifier_character(character: char) -> bool {
     character.is_alphanumeric() || character == '_'
+}
+
+/// Analyze component script blocks only, preserving UTF-8 byte and line positions.
+/// Template/style markup is outside this bounded mode's coverage.
+pub(crate) fn component_source(path: &Path, source: &str) -> Option<String> {
+    let extension = path.extension()?.to_str()?;
+    if !matches!(extension, "vue" | "svelte" | "astro") {
+        return None;
+    }
+    let mut output: Vec<u8> = source
+        .bytes()
+        .map(|b| if b == b'\n' || b == b'\r' { b } else { b' ' })
+        .collect();
+    let mut cursor = 0;
+    if extension == "astro" && source.starts_with("---") {
+        if let Some(end) = source[3..].find("\n---") {
+            let end = end + 3;
+            output[3..end].copy_from_slice(&source.as_bytes()[3..end]);
+            cursor = end + 4;
+        }
+    }
+    while let Some(start) = source[cursor..].find("<script") {
+        let tag = cursor + start + 7;
+        let Some(open) = source[tag..].find('>') else {
+            break;
+        };
+        let start = tag + open + 1;
+        let Some(end) = source[start..].find("</script>") else {
+            break;
+        };
+        let end = start + end;
+        output[start..end].copy_from_slice(&source.as_bytes()[start..end]);
+        cursor = end + 9;
+    }
+    Some(String::from_utf8(output).expect("copied complete UTF-8 script ranges"))
 }
 
 #[cfg(test)]

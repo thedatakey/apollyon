@@ -79,10 +79,14 @@ jobs:
           python3 scripts/validate_release.py
           python3 -m unittest discover -s benchmarks -p 'test_*.py'
           python3 tests/test_release_packaging.py
+          python3 tests/test_distribution.py
+          python3 tests/test_case_confidence.py
+          python3 scripts/validate_audit_corpus.py target/debug/apollyon
           python3 scripts/validate_phase4.py
           node --check vscode-apollyon/extension.js
           node --check vscode-apollyon/sarif.js
           node --test vscode-apollyon/test/*.test.js
+          node --test distribution/npm/bin.test.cjs
           cargo +"$RUST_VERSION" package --locked
 
       - name: Validate minimum Rust version
@@ -245,6 +249,19 @@ jobs:
           cd dist
           sha256sum --check SHA256SUMS
 
+      - name: Prepare npm packages and Homebrew formula
+        shell: bash
+        run: |
+          python3 scripts/prepare_distribution.py --artifacts dist --version "${GITHUB_REF_NAME#v}" --output distribution-output
+          for package in distribution-output/apollyon*; do
+            [ -d "$package" ] || continue
+            (cd "$package" && npm pack --ignore-scripts)
+          done
+          mkdir distribution-assets
+          cp distribution-output/*/*.tgz distribution-assets/
+          cp distribution-output/apollyon.rb distribution-assets/
+          (cd distribution-assets && sha256sum *.tgz apollyon.rb > SHA256SUMS)
+
       - name: Install Cosign
         uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
         with:
@@ -256,6 +273,24 @@ jobs:
           cosign sign-blob --yes \
             --bundle dist/SHA256SUMS.sigstore.json \
             dist/SHA256SUMS
+
+      - name: Sign distribution manifest
+        shell: bash
+        run: |
+          cosign sign-blob --yes --bundle distribution-assets/SHA256SUMS.sigstore.json distribution-assets/SHA256SUMS
+
+      - name: Attest distribution packages
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-checksums: distribution-assets/SHA256SUMS
+
+      - name: Store reviewable distribution packages
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: package-manager-distribution
+          path: distribution-assets/*
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Generate release notes
         shell: bash

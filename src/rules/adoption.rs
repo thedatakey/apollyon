@@ -4,43 +4,62 @@ use crate::lexer::{Language, LineView};
 fn literal_value(value: &str) -> &str {
     value.trim_matches(['\'', '"', '`', '#'])
 }
-fn entropy(value: &str) -> f64 {
-    let mut counts = [0usize; 256];
-    for b in value.bytes() {
-        counts[b as usize] += 1;
+pub(crate) fn secret_name(name: &str) -> bool {
+    let mut segmented = String::new();
+    let mut previous_lower = false;
+    for ch in name.chars() {
+        if ch.is_uppercase() && previous_lower {
+            segmented.push('_');
+        }
+        previous_lower = ch.is_lowercase();
+        segmented.extend(ch.to_lowercase());
     }
-    let n = value.len() as f64;
-    counts
-        .iter()
-        .filter(|&&c| c > 0)
-        .map(|&c| {
-            let p = c as f64 / n;
-            -p * p.log2()
-        })
-        .sum()
+    segmented
+        .split(|c: char| !c.is_alphanumeric())
+        .any(|part| SECRET_NAMES.contains(&part))
+        || segmented.ends_with("api_key")
+        || segmented == "service_role"
 }
-fn hardcoded_secret(view: &LineView) -> bool {
+fn placeholder(value: &str) -> bool {
+    let lower = value.to_ascii_lowercase();
+    matches!(
+        lower.as_str(),
+        "changeme"
+            | "password"
+            | "your-key-here"
+            | "example"
+            | "test"
+            | "test key"
+            | "secret_key"
+            | "dummy"
+            | "redacted"
+    ) || lower.starts_with(['<'])
+        || lower.contains("${")
+        || lower.contains("{{")
+        || value.chars().all(|c| value.starts_with(c))
+}
+pub(crate) fn secret_assignment(view: &LineView) -> bool {
     view.literals.iter().any(|raw| {
         let value = literal_value(raw);
-        let prefix = SECRET_PREFIXES.iter().any(|(p, n)| {
-            value.starts_with(p)
-                && value.len() >= *n
-                && value
-                    .bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || b"_-/+=.".contains(&b))
-        });
-        let named = SECRET_NAMES
-            .iter()
-            .any(|name| contains_token(&view.code.to_ascii_lowercase(), name))
-            && view.code.contains('=')
-            && value.len() >= 8;
+        let prefix = super::secrets::provider(value);
+        // Only the assignment's immediate literal value qualifies. Literal keys
+        // inside calls/subscripts are not credentials assigned to the target.
+        let named = view
+            .visible
+            .split_once('=')
+            .or_else(|| view.visible.split_once(':'))
+            .is_some_and(|(left, right)| {
+                let target = left.split_whitespace().last().unwrap_or("");
+                let right = right.trim_start();
+                secret_name(target)
+                    && right.strip_prefix(raw).is_some_and(|tail| {
+                        tail.trim().is_empty() || tail.trim_start().starts_with([';', ',', '}'])
+                    })
+            })
+            && value.len() >= 8
+            && !placeholder(value);
         let private_key = value.contains("-----BEGIN ") && value.contains("PRIVATE KEY-----");
-        let high_entropy = value.len() >= 32
-            && value.len() <= 512
-            && value.is_ascii()
-            && !value.contains(char::is_whitespace)
-            && entropy(value) >= 4.5;
-        prefix || named || private_key || high_entropy
+        prefix || named || private_key
     })
 }
 fn flag_value(code: &str, name: &str, value: &str) -> bool {
@@ -87,6 +106,13 @@ fn variable_path(view: &LineView) -> bool {
             {
                 return false;
             }
+            if *api == "open"
+                && i > 0
+                && view.masked[..i].ends_with('.')
+                && !view.masked[..i].ends_with("File.")
+            {
+                return false;
+            }
             let after = view.visible[i + api.len()..].trim_start();
             let Some(args) = after.strip_prefix('(') else {
                 return false;
@@ -123,7 +149,7 @@ pub(crate) fn match_rules(
     language: Language,
     candidates: &mut Vec<&'static RuleInfo>,
 ) {
-    if hardcoded_secret(view) {
+    if secret_assignment(view) {
         candidates.push(rule_info("APO007"));
     }
     let weak = WEAK_CRYPTO.iter().any(|p| contains_token(&view.code, p))
@@ -135,7 +161,8 @@ pub(crate) fn match_rules(
                         .any(|piece| piece.eq_ignore_ascii_case(p))
                 })
             }));
-    if weak {
+    if weak && !(language == Language::Python && flag_value(&view.code, "usedforsecurity", "False"))
+    {
         candidates.push(rule_info("APO008"));
     }
     let random = match language {
@@ -156,13 +183,17 @@ pub(crate) fn match_rules(
         || ((contains_token(&view.code, "NODE_TLS_REJECT_UNAUTHORIZED")
             || contains_token(&view.code, "process.env"))
             && view.visible.contains("NODE_TLS_REJECT_UNAUTHORIZED")
-            && view.visible.split_once('=').is_some_and(|(_, v)| {
-                v.trim()
-                    .trim_end_matches(';')
-                    .trim_matches(['\'', '"'])
-                    .trim()
-                    == "0"
-            }))
+            && view
+                .visible
+                .split_once('=')
+                .or_else(|| view.visible.split_once(':'))
+                .is_some_and(|(_, v)| {
+                    v.trim()
+                        .trim_end_matches(';')
+                        .trim_matches(['\'', '"'])
+                        .trim()
+                        == "0"
+                }))
         || (contains_token(&view.code, "HostnameVerifier") && view.code.contains("return true"))
         || (contains_call(&view.code, "checkServerTrusted")
             && view

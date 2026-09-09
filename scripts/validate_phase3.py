@@ -35,9 +35,9 @@ def main() -> int:
             check=True,
         )
         findings = json.loads(report.read_text(encoding="utf-8"))
-        tainted = [finding for finding in findings["findings"] if finding["confidence"] == "tainted"]
+        tainted = [finding for finding in findings["findings"] if finding["confidence"] in {"tainted", "reachable"}]
         if len(tainted) != 1 or len(tainted[0].get("case_refs", [])) != 1:
-            raise SystemExit("fixture did not produce exactly one referenced tainted case")
+            raise SystemExit("fixture did not produce exactly one referenced tainted or reachable case")
         candidate = next(cases.glob("*.json"))
         verified_path = temporary / "verified.json"
         subprocess.run(

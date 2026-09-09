@@ -12,7 +12,23 @@ pub use text::{render_rules, render_text};
 const SCOPE_NOTE: &str = "Findings reflect a fixed set of bounded rules with AST validation when parsing succeeds and an explicit lexical fallback. Zero findings is not a security guarantee and does not imply the scanned code is safe.";
 
 fn control_properties(report: &crate::report::ScanReport) -> String {
-    format!(",\"suppressed_findings\":{},\"disabled_findings\":{},\"new\":{},\"baselined\":{},\"total\":{},\"unselected_files\":{},\"missing_selected_files\":{},\"unsupported_selected_files\":{},\"ast_files\":{},\"lexical_files\":{},\"parse_fallback_files\":{}", report.suppressed_findings, report.disabled_findings, report.findings.len(), report.baselined_findings, report.total_findings, report.unselected_files, report.missing_selected_files, report.unsupported_selected_files, report.ast_files, report.lexical_files, report.parse_fallback_files)
+    let mut output = format!(",\"suppressed_findings\":{},\"disabled_findings\":{},\"new\":{},\"baselined\":{},\"total\":{},\"unselected_files\":{},\"missing_selected_files\":{},\"unsupported_selected_files\":{},\"ast_files\":{},\"lexical_files\":{},\"parse_fallback_files\":{}", report.suppressed_findings, report.disabled_findings, report.findings.len(), report.baselined_findings, report.total_findings, report.unselected_files, report.missing_selected_files, report.unsupported_selected_files, report.ast_files, report.lexical_files, report.parse_fallback_files);
+    if report.filtered_findings > 0 {
+        output.push_str(&format!(
+            ",\"filtered_findings\":{}",
+            report.filtered_findings
+        ));
+    }
+    if report.truncated_findings > 0 {
+        output.push_str(&format!(
+            ",\"truncated_findings\":{}",
+            report.truncated_findings
+        ));
+    }
+    if report.error_nodes > 0 {
+        output.push_str(&format!(",\"error_nodes\":{}", report.error_nodes));
+    }
+    output
 }
 
 #[cfg(test)]

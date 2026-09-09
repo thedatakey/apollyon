@@ -71,7 +71,7 @@ fn new_rules_have_positive_and_negative_fixtures() {
 #[test]
 fn suppressions_are_comment_only_and_counted() {
     let w = Workspace::new();
-    w.write("app.py","eval(value) # apollyon:ignore[APO004] reviewed\neval('apollyon:ignore')\nopen(path) # apollyon:ignore reason\n");
+    w.write("app.py","eval(value) # apollyon:ignore[APO004] reviewed\neval('apollyon:ignore')\nopen(request.args['path']) # apollyon:ignore reason\n");
     let out = w.scan(&[]);
     assert!(out.status.success());
     assert_eq!(count(&out, "suppressed_findings"), 2);
@@ -109,7 +109,7 @@ fn baseline_survives_line_insertions_and_counts_new_findings() {
     assert!(!fs::read_to_string(&baseline).unwrap().contains("eval"));
     w.write(
         "app.py",
-        "# unrelated inserted comment\n\neval(value)\nopen(path)\n",
+        "# unrelated inserted comment\n\neval(value)\nopen(request.args['path'])\n",
     );
     let out = w.scan(&["--baseline", path]);
     assert!(out.status.success());
@@ -165,12 +165,12 @@ fn gitignore_nested_negation_and_override_are_counted() {
     let out = w.scan(&["--no-gitignore"]);
     assert_eq!(count(&out, "scanned_files"), 3);
     w.write(".gitignore", "**/something\n");
-    assert_eq!(w.scan(&[]).status.code(), Some(3));
+    assert_eq!(w.scan(&[]).status.code(), Some(0));
 }
 #[test]
 fn config_precedence_and_invalid_syntax() {
     let w = Workspace::new();
-    w.write("app.py", "eval(value)\nopen(path)\n");
+    w.write("app.py", "eval(value)\nopen(request.args['path'])\n");
     w.write(
         "apollyon.toml",
         "disabled_rules = [\"APO004\"]\nfail_on = \"high\"\n[severity]\nAPO012 = \"high\"\n",
@@ -233,7 +233,7 @@ fn path_expressions_and_unsupported_selected_files_are_explicit() {
     let w = Workspace::new();
     w.write(
         "paths.py",
-        "open('base/' + name)\nopen(f'{name}.txt')\nopen('fixed.txt')\n",
+        "name = request.args['name']\nopen('base/' + name)\nopen(f'{name}.txt')\nopen('fixed.txt')\n",
     );
     let out = w.scan(&[]);
     assert!(out.status.success());

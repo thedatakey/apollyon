@@ -32,9 +32,25 @@ pub(crate) fn match_rules(
                 index.saturating_sub(seen_at) <= CSHARP_FORMATTER_PROXIMITY_LINES
             }) && contains_call(code, "Deserialize")
         }
-        Language::Jvm => contains_call(code, "readObject"),
+        Language::Jvm => contains_any_call(
+            code,
+            &["readObject", "enableDefaultTyping", "activateDefaultTyping"],
+        ),
         Language::Php => contains_call(code, "unserialize"),
-        Language::Python => contains_any_call(code, &["pickle.load", "pickle.loads", "yaml.load"]),
+        Language::Python => contains_any_call(
+            code,
+            &[
+                "pickle.load",
+                "pickle.loads",
+                "yaml.load",
+                "yaml.unsafe_load",
+                "dill.load",
+                "dill.loads",
+                "joblib.load",
+                "jsonpickle.decode",
+                "marshal.loads",
+            ],
+        ),
         Language::Ruby => contains_ruby_command(code, "Marshal.load"),
         _ => false,
     };

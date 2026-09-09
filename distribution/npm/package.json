@@ -1,0 +1,16 @@
+{
+  "name": "apollyon",
+  "version": "0.4.0",
+  "description": "Bounded source security scanning with explicit coverage",
+  "license": "MIT",
+  "bin": {"apollyon": "bin.cjs"},
+  "files": ["bin.cjs", "README.md", "LICENSE"],
+  "engines": {"node": ">=18"},
+  "repository": {"type": "git", "url": "https://github.com/thedatakey/apollyon"},
+  "optionalDependencies": {
+    "apollyon-linux-x64": "0.4.0",
+    "apollyon-darwin-arm64": "0.4.0",
+    "apollyon-darwin-x64": "0.4.0",
+    "apollyon-win32-x64": "0.4.0"
+  }
+}

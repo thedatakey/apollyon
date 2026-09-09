@@ -1,12 +1,13 @@
 //! Tree-sitter parsing and AST validation for lexical candidates.
-use crate::{
-    lexer::{lex_line, Language, LexState},
-    rules::{adoption, deserialization, exec, memory},
+use crate::lexer::Language;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::Path,
 };
-use std::{collections::BTreeSet, path::Path};
 use tree_sitter::{Language as TsLanguage, Node, Parser};
+const MAX_CAPTURED_AST_BYTES: usize = 16 * 1024 * 1024;
 const MAX_AST_NODES: usize = 1_000_000;
-const MAX_INSPECTED_AST_BYTES: usize = 16 * 1024 * 1024;
+
 #[derive(Clone, Debug)]
 pub(crate) struct Function {
     pub name: String,
@@ -18,36 +19,47 @@ pub(crate) struct Function {
 pub(crate) struct Call {
     pub name: String,
     pub arguments: Vec<String>,
+    pub first_argument: String,
+    pub qualified_name: String,
     pub line: usize,
     pub scope: (usize, usize),
 }
 #[derive(Debug)]
 pub(crate) struct Analysis {
     allowed: BTreeSet<(usize, &'static str)>,
-    pub scopes: Vec<(usize, usize)>,
+    scope_lines: Vec<(usize, usize)>,
     pub functions: Vec<Function>,
     pub calls: Vec<Call>,
+    pub command_calls: BTreeMap<usize, bool>,
+    shadowed_commands: BTreeSet<usize>,
+    pub error_nodes: usize,
+    pub interpolations: BTreeMap<usize, Vec<String>>,
+    pub tls_fix_ranges: Vec<std::ops::Range<usize>>,
+    uncertain: Vec<(usize, usize)>,
 }
 impl Analysis {
     pub fn allows(&self, line: usize, rule: &str) -> bool {
-        self.allowed.contains(&(
-            line,
-            RULE_IDS.iter().copied().find(|r| *r == rule).unwrap_or(""),
-        ))
+        !(rule == "APO005" && self.shadowed_commands.contains(&line))
+            && (!self.reliable(line) || self.allowed.contains(&(line, rule)))
+    }
+    pub fn reliable(&self, line: usize) -> bool {
+        !self
+            .uncertain
+            .iter()
+            .any(|(start, end)| *start <= line && line <= *end)
+    }
+    pub fn calls_on_line(&self, line: usize) -> &[Call] {
+        let start = self.calls.partition_point(|call| call.line < line);
+        let end = self.calls.partition_point(|call| call.line <= line);
+        &self.calls[start..end]
     }
     pub fn scope(&self, line: usize) -> (usize, usize) {
-        self.scopes
-            .iter()
+        self.scope_lines
+            .get(line.saturating_sub(1))
             .copied()
-            .filter(|(a, b)| *a <= line && line <= *b)
-            .min_by_key(|(a, b)| b - a)
             .unwrap_or((1, usize::MAX))
     }
 }
-const RULE_IDS: [&str; 12] = [
-    "APO001", "APO002", "APO003", "APO004", "APO005", "APO006", "APO007", "APO008", "APO009",
-    "APO010", "APO011", "APO012",
-];
 fn grammar(path: &Path) -> Option<TsLanguage> {
     let ext = path.extension()?.to_str()?.to_ascii_lowercase();
     Some(match ext.as_str() {
@@ -84,7 +96,10 @@ fn function_kind(kind: &str) -> bool {
 fn call_kind(kind: &str) -> bool {
     kind.contains("call")
         || kind.contains("invocation")
-        || matches!(kind, "command" | "object_creation_expression")
+        || matches!(
+            kind,
+            "command" | "object_creation_expression" | "new_expression"
+        )
 }
 fn structured_kind(kind: &str) -> bool {
     matches!(
@@ -121,7 +136,7 @@ fn first_identifier(node: Node, source: &str) -> Option<String> {
 fn list_identifiers(node: Node, source: &str) -> Vec<String> {
     let mut cursor = node.walk();
     node.named_children(&mut cursor)
-        .filter_map(|child| first_identifier(child, source))
+        .map(|child| first_identifier(child, source).unwrap_or_default())
         .collect()
 }
 
@@ -138,15 +153,26 @@ fn parameter_identifiers(node: Node, source: &str) -> Vec<String> {
         .collect()
 }
 
-fn lexical_ids(text: &str, language: Language) -> BTreeSet<&'static str> {
-    let view = lex_line(text, language, &mut LexState::default());
-    let mut rules = Vec::new();
-    memory::match_rules(&view.code, language, &mut rules);
-    exec::match_rules(&view.code, language, &mut rules);
-    let mut seen = None;
-    deserialization::match_rules(&view.code, language, 0, &mut seen, &mut rules);
-    adoption::match_rules(&view, language, &mut rules);
-    rules.into_iter().map(|r| r.id).collect()
+fn child_process_module(node: Node, source: &str) -> bool {
+    matches!(
+        slice(node, source).trim_matches(['\'', '"']),
+        "child_process" | "node:child_process"
+    )
+}
+fn require_child_process(node: Node, source: &str) -> bool {
+    node.child_by_field_name("function")
+        .is_some_and(|n| slice(n, source) == "require")
+        && node.child_by_field_name("arguments").is_some_and(|args| {
+            args.named_child(0)
+                .is_some_and(|n| child_process_module(n, source))
+        })
+}
+fn command_api(name: &str) -> Option<bool> {
+    match name {
+        "exec" | "execSync" => Some(true),
+        "spawn" | "spawnSync" | "execFile" | "execFileSync" | "fork" => Some(false),
+        _ => None,
+    }
 }
 pub(crate) fn analyze(path: &Path, source: &str, language: Language) -> Result<Analysis, String> {
     let grammar = grammar(path).ok_or("no grammar")?;
@@ -154,19 +180,33 @@ pub(crate) fn analyze(path: &Path, source: &str, language: Language) -> Result<A
     parser
         .set_language(&grammar)
         .map_err(|_| "grammar ABI mismatch")?;
-    #[allow(deprecated)]
-    parser.set_timeout_micros(2_000_000);
-    let tree = parser.parse(source, None).ok_or("parser timed out")?;
-    if tree.root_node().has_error() {
-        return Err("tree-sitter reported syntax errors".into());
-    }
+    let started = std::time::Instant::now();
+    let mut progress =
+        |_: &tree_sitter::ParseState| started.elapsed() > std::time::Duration::from_secs(2);
+    let mut input = |offset: usize, _: tree_sitter::Point| &source.as_bytes()[offset..];
+    let tree = parser
+        .parse_with_options(
+            &mut input,
+            None,
+            Some(tree_sitter::ParseOptions::new().progress_callback(&mut progress)),
+        )
+        .ok_or("parser timed out")?;
     let mut nodes = vec![tree.root_node()];
     let mut allowed = BTreeSet::new();
     let mut scopes = Vec::new();
     let mut functions = Vec::new();
     let mut raw_calls = Vec::new();
+    let mut bindings = BTreeMap::new();
+    let mut declarations = Vec::new();
+    let mut shadowed_commands = BTreeSet::new();
+    let mut command_calls = BTreeMap::new();
     let mut visited = 0;
-    let mut inspected_bytes = 0usize;
+    let mut captured_bytes = 0usize;
+    let mut uncertain = Vec::new();
+    let mut error_nodes = 0;
+    let mut interpolations: BTreeMap<usize, Vec<String>> = BTreeMap::new();
+    let mut tls_fix_ranges = Vec::new();
+
     while let Some(node) = nodes.pop() {
         visited += 1;
         if visited > MAX_AST_NODES {
@@ -175,25 +215,137 @@ pub(crate) fn analyze(path: &Path, source: &str, language: Language) -> Result<A
         let line = node.start_position().row + 1;
         let kind = node.kind();
         let text = slice(node, source);
+        if matches!(kind, "interpolation" | "template_substitution") && !node.has_error() {
+            interpolations
+                .entry(line)
+                .or_default()
+                .push(text.to_owned());
+        }
+        if language == Language::Python && kind == "keyword_argument" {
+            if let (Some(name), Some(value), Some(call)) = (
+                node.child_by_field_name("name"),
+                node.child_by_field_name("value"),
+                node.parent().and_then(|arguments| arguments.parent()),
+            ) {
+                let requests = call
+                    .child_by_field_name("function")
+                    .is_some_and(|function| {
+                        [
+                            "requests.get",
+                            "requests.post",
+                            "requests.put",
+                            "requests.patch",
+                            "requests.delete",
+                            "requests.head",
+                            "requests.options",
+                            "requests.request",
+                        ]
+                        .contains(&slice(function, source))
+                    });
+                if requests
+                    && !call.has_error()
+                    && slice(name, source) == "verify"
+                    && slice(value, source) == "False"
+                {
+                    tls_fix_ranges.push(value.byte_range());
+                }
+            }
+        }
+        if node.is_error() || node.is_missing() {
+            error_nodes += 1;
+            uncertain.push((line, node.end_position().row + 1));
+        } else if node.has_error() && (call_kind(kind) || structured_kind(kind)) {
+            uncertain.push((line, node.end_position().row + 1));
+        }
+        if language == Language::JavaScript {
+            if matches!(kind, "variable_declarator" | "assignment_expression") {
+                if let Some(name) = node
+                    .child_by_field_name("name")
+                    .or_else(|| node.child_by_field_name("left"))
+                {
+                    if name.kind() == "identifier" {
+                        let imported = node
+                            .child_by_field_name("value")
+                            .or_else(|| node.child_by_field_name("right"))
+                            .is_some_and(|v| require_child_process(v, source));
+                        declarations.push((slice(name, source).to_owned(), line, imported));
+                    }
+                }
+            }
+            if kind == "variable_declarator" {
+                if let (Some(name), Some(value)) = (
+                    node.child_by_field_name("name"),
+                    node.child_by_field_name("value"),
+                ) {
+                    if require_child_process(value, source) {
+                        if name.kind() == "identifier" {
+                            bindings.insert(slice(name, source).to_owned(), "*".to_owned());
+                        } else if name.kind() == "object_pattern" {
+                            let mut cursor = name.walk();
+                            for entry in name.named_children(&mut cursor) {
+                                let key = entry.child_by_field_name("key").unwrap_or(entry);
+                                let alias = entry.child_by_field_name("value").unwrap_or(key);
+                                if command_api(slice(key, source)).is_some() {
+                                    bindings.insert(
+                                        slice(alias, source).to_owned(),
+                                        slice(key, source).to_owned(),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if kind == "import_statement"
+                && node
+                    .child_by_field_name("source")
+                    .is_some_and(|n| child_process_module(n, source))
+            {
+                let mut entries = vec![node];
+                while let Some(entry) = entries.pop() {
+                    if entry.kind() == "import_specifier" {
+                        if let Some(name) = entry.child_by_field_name("name") {
+                            let alias = entry.child_by_field_name("alias").unwrap_or(name);
+                            bindings.insert(
+                                slice(alias, source).to_owned(),
+                                slice(name, source).to_owned(),
+                            );
+                        }
+                    } else if entry.kind() == "namespace_import" {
+                        if let Some(name) = first_identifier(entry, source) {
+                            bindings.insert(name, "*".into());
+                        }
+                    } else {
+                        let mut cursor = entry.walk();
+                        entries.extend(entry.named_children(&mut cursor));
+                    }
+                }
+            }
+            if let Some(function) = node.child_by_field_name("function") {
+                if let (Some(object), Some(property)) = (
+                    function.child_by_field_name("object"),
+                    function.child_by_field_name("property"),
+                ) {
+                    if require_child_process(object, source) {
+                        if let Some(shell) = command_api(slice(property, source)) {
+                            command_calls.insert(line, shell);
+                        }
+                    }
+                }
+            }
+        }
         let inspect = call_kind(kind)
             || structured_kind(kind)
             || kind.contains("unsafe")
             || kind.contains("identifier");
-        let ids = if inspect {
-            inspected_bytes = inspected_bytes.saturating_add(text.len());
-            if inspected_bytes > MAX_INSPECTED_AST_BYTES {
-                return Err("AST inspection text limit exceeded".into());
-            }
-            lexical_ids(text, language)
-        } else {
-            BTreeSet::new()
-        };
-        for id in ids {
+        for rule in crate::rules::RULES.iter().filter(|_| inspect) {
+            let id = rule.id;
             let valid = match id {
                 "APO003" => kind.contains("unsafe"),
                 "APO007" => structured_kind(kind),
                 "APO008" => call_kind(kind) || kind.contains("identifier") || structured_kind(kind),
-                "APO010" => call_kind(kind) || structured_kind(kind),
+                "APO010" | "APO013" | "APO014" | "APO015" | "APO017" | "APO018" | "APO019"
+                | "APO020" | "APO021" => call_kind(kind) || structured_kind(kind),
                 _ => call_kind(kind),
             };
             if valid {
@@ -221,6 +373,10 @@ pub(crate) fn analyze(path: &Path, source: &str, language: Language) -> Result<A
             }
         }
         if call_kind(kind) {
+            captured_bytes = captured_bytes.saturating_add(text.len());
+            if captured_bytes > MAX_CAPTURED_AST_BYTES {
+                return Err("AST capture text limit exceeded".into());
+            }
             if let (Some(function), Some(arguments)) = (
                 node.child_by_field_name("function")
                     .or_else(|| node.child_by_field_name("name")),
@@ -228,12 +384,12 @@ pub(crate) fn analyze(path: &Path, source: &str, language: Language) -> Result<A
             ) {
                 let args = list_identifiers(arguments, source);
                 raw_calls.push((
-                    slice(function, source)
-                        .rsplit(['.', ':'])
-                        .next()
-                        .unwrap_or("")
-                        .to_owned(),
+                    slice(function, source).to_owned(),
                     args,
+                    arguments
+                        .named_child(0)
+                        .map(|n| slice(n, source).to_owned())
+                        .unwrap_or_default(),
                     line,
                 ));
             }
@@ -243,28 +399,97 @@ pub(crate) fn analyze(path: &Path, source: &str, language: Language) -> Result<A
             nodes.push(child);
         }
     }
-    let calls = raw_calls
+    let line_count = source.lines().count();
+    if line_count > 1_000_000 {
+        return Err("AST line index limit exceeded".into());
+    }
+    let mut starts = scopes.clone();
+    starts.sort();
+    let mut ends = scopes.clone();
+    ends.sort_by_key(|(a, b)| (*b, *a));
+    let (mut begin, mut end) = (0, 0);
+    let mut active = BTreeSet::new();
+    let mut scope_lines = Vec::with_capacity(line_count);
+    for line in 1..=line_count {
+        while begin < starts.len() && starts[begin].0 <= line {
+            let (a, b) = starts[begin];
+            active.insert((b - a, a, b));
+            begin += 1;
+        }
+        while end < ends.len() && ends[end].1 < line {
+            let (a, b) = ends[end];
+            active.remove(&(b - a, a, b));
+            end += 1;
+        }
+        scope_lines.push(active.first().map_or((1, usize::MAX), |(_, a, b)| (*a, *b)));
+    }
+    let mut calls: Vec<Call> = raw_calls
         .into_iter()
-        .map(|(name, arguments, line)| {
-            let scope = scopes
-                .iter()
+        .map(|(name, arguments, first_argument, line)| {
+            if language == Language::JavaScript {
+                let root_name = name.split('.').next().unwrap_or(&name);
+                let innermost = functions
+                    .iter()
+                    .filter(|f| f.start <= line && line <= f.end)
+                    .min_by_key(|f| f.end - f.start);
+                let shadowed = innermost.is_some_and(|f| {
+                    f.parameters.iter().any(|p| {
+                        p == root_name || (root_name.starts_with("require(") && p == "require")
+                    })
+                }) || declarations
+                    .iter()
+                    .filter(|(n, at, _)| {
+                        n == root_name
+                            && *at <= line
+                            && scopes
+                                .iter()
+                                .filter(|(a, b)| *a <= *at && *at <= *b)
+                                .all(|(a, b)| *a <= line && line <= *b)
+                    })
+                    .max_by_key(|(_, at, _)| *at)
+                    .is_some_and(|(_, _, imported)| !*imported);
+                let resolved = if let Some((receiver, method)) = name.split_once('.') {
+                    (bindings.get(receiver).is_some_and(|b| b == "*")).then_some(method)
+                } else {
+                    bindings.get(&name).map(String::as_str)
+                };
+                if !shadowed {
+                    if let Some(shell) = resolved.and_then(command_api) {
+                        command_calls.insert(line, shell);
+                    }
+                } else {
+                    shadowed_commands.insert(line);
+                    command_calls.remove(&line);
+                }
+            }
+            let qualified_name = name.clone();
+            let name = name.rsplit(['.', ':']).next().unwrap_or("").to_owned();
+            let scope = scope_lines
+                .get(line - 1)
                 .copied()
-                .filter(|(a, b)| *a <= line && line <= *b)
-                .min_by_key(|(a, b)| b - a)
                 .unwrap_or((1, usize::MAX));
             Call {
                 name,
                 arguments,
+                first_argument,
+                qualified_name,
                 line,
                 scope,
             }
         })
         .collect();
+    calls.sort_by_key(|call| call.line);
     Ok(Analysis {
         allowed,
-        scopes,
+        scope_lines,
         functions,
         calls,
+        command_calls,
+        shadowed_commands,
+        error_nodes,
+        interpolations,
+        tls_fix_ranges,
+        uncertain,
     })
 }
 fn id_line(text: &str, id: &str) -> bool {
@@ -321,7 +546,15 @@ mod tests {
         assert!(!a.allows(1, "APO005"));
     }
     #[test]
-    fn syntax_error_requests_fallback() {
-        assert!(analyze(Path::new("a.py"), "def broken(:", Language::Python).is_err());
+    fn syntax_error_preserves_recovered_tree() {
+        let a = analyze(
+            Path::new("a.py"),
+            "eval(value)\ndef broken(:",
+            Language::Python,
+        )
+        .unwrap();
+        assert!(a.error_nodes > 0);
+        assert!(a.reliable(1));
+        assert!(!a.reliable(2));
     }
 }

@@ -1,0 +1,55 @@
+Apollyon — bounded, evidence-first source assessment
+
+Usage:
+  apollyon scan <path> [options]
+  apollyon init [path] [--github-action] [--pre-commit]
+  apollyon explain <rule>                     (also --explain <rule>)
+  apollyon deps <path> [--database <OSV JSON>]
+  apollyon rules
+  apollyon --version
+  apollyon --help
+
+Scan output:
+  --format text|json|sarif|markdown|github|gitlab
+  --json                                    Alias for --format json
+  --output <new-file|->                      New file or stdout (-)
+  --include-snippets                        Opt in to redacted local evidence
+  --no-snippets                             Disable snippet output (the default)
+  --quiet                                   One-line text result
+  --stats                                   Include standard coverage statistics
+  --color auto|always|never                  Terminal color policy
+
+Selection and review:
+  --exclude <glob>                          Repeatable root-relative exclusion
+  --only <id,id>                            Rule allowlist
+  --enable-rule <id>                        Re-enable; add to configured allowlist
+  --disable-rule <id>                       Disable, including if also enabled
+  --severity <id>=info|medium|high           Override rule severity
+  --min-severity info|medium|high            Filter displayed findings
+  --fail-on info|medium|high|never           Configure the finding exit threshold
+  --production-only                         Display and fail on production paths
+  --include-tests                           Clear production-only mode
+  --baseline <file>                         Explicit baseline
+  --no-auto-baseline                        Ignore discovered apollyon-baseline.json
+  --write-baseline <new-file>                Write identifiers from a complete scan
+  --diff <git-ref>                           Select changed tracked paths
+  --changed-files <file>                     Select paths from a bounded list
+  --no-gitignore                            Disable .gitignore handling
+  --no-default-ignores                      Disable built-in directory exclusions
+  --interprocedural                         Add one modeled call boundary
+
+Resources and workflows:
+  --jobs <1..32>                            Bounded worker count
+  --max-findings <n>                        Default 10000; maximum 1000000
+  --max-file-bytes <n>                      Default 2097152; maximum 33554432
+  --max-total-bytes <n>                     Default 268435456; maximum 2147483648
+  --max-entries <n>                         Default 100000; maximum 2000000
+  --watch [--watch-count <n>]                Repeat inert scans once per second
+  --fix-dry-run                             Preview supported mechanical TLS fixes
+  --fix                                     Apply supported TLS fixes with backups
+  --cases-dir <new-directory> --authorized   Write candidate evidence cases
+  --repository <id> --revision <id>          Optional case scope identifiers
+
+Exit codes: 0 complete, 1 finding met threshold, 2 invocation/output error,
+3 incomplete scan. Dependency matching uses 1 for an advisory match.
+Findings require review. Scan completion is not a security guarantee.

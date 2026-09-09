@@ -23,10 +23,21 @@ pub(crate) fn match_rules(code: &str, language: Language, candidates: &mut Vec<&
     let shell_execution = match language {
         Language::CFamily => contains_any_call(code, &["system", "popen"]),
         Language::CSharp => contains_call(code, "Process.Start"),
-        Language::JavaScript => {
-            contains_any_call(code, &["child_process.exec", "child_process.execSync"])
-        }
-        Language::Go => contains_any_call(code, &["exec.Command", "exec.CommandContext"]),
+        Language::JavaScript => contains_any_call(
+            code,
+            &[
+                "child_process.exec",
+                "child_process.execSync",
+                "shelljs.exec",
+                "execa",
+                "Bun.spawn",
+                "Deno.Command",
+            ],
+        ),
+        Language::Go => contains_any_call(
+            code,
+            &["exec.Command", "exec.CommandContext", "syscall.Exec"],
+        ),
         Language::Jvm => contains_any_call(code, &["ProcessBuilder", "Runtime.getRuntime().exec"]),
         Language::Php => contains_any_call(
             code,
@@ -49,11 +60,21 @@ pub(crate) fn match_rules(code: &str, language: Language, candidates: &mut Vec<&
                 "subprocess.check_output",
                 "subprocess.Popen",
                 "subprocess.run",
+                "os.execv",
+                "os.execve",
+                "os.execvp",
+                "os.execvpe",
+                "os.spawnv",
+                "os.spawnve",
+                "os.spawnvp",
+                "pty.spawn",
+                "commands.getoutput",
             ],
         ),
         Language::Ruby => contains_any_ruby_command(code, &["exec", "spawn", "system"]),
         Language::Rust => contains_call(code, "Command::new"),
         Language::Swift => contains_call(code, "Process"),
+        Language::Config => false,
     };
     if shell_execution {
         candidates.push(rule_info("APO005"));

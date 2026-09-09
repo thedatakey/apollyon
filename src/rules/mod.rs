@@ -4,7 +4,9 @@ pub(crate) mod adoption;
 pub(crate) mod deserialization;
 pub(crate) mod exec;
 pub(crate) mod memory;
-mod patterns;
+pub(crate) mod patterns;
+mod secrets;
+pub(crate) mod web;
 
 #[derive(Clone, Copy)]
 pub(crate) struct RuleInfo {
@@ -64,6 +66,16 @@ pub(crate) const RULES: &[RuleInfo] = &[
     RuleInfo { id: "APO010", name: "tls-verification-disabled", severity: Severity::High, message: "Disabled TLS verification requires review of certificate and hostname authentication.", languages: "Python, JavaScript, TypeScript, Go, Java, Kotlin, PHP, C, C++" },
     RuleInfo { id: "APO011", name: "sql-string-building", severity: Severity::Medium, message: "Dynamically assembled SQL requires review of parameterization and untrusted input.", languages: "all supported languages" },
     RuleInfo { id: "APO012", name: "path-traversal-sink", severity: Severity::Medium, message: "Variable filesystem path requires review of input validation and directory confinement.", languages: "all supported languages" },
+    RuleInfo { id: "APO013", name: "public-secret-exposure", severity: Severity::High, message: "Client-public configuration contains credential material; move secrets to server-only storage.", languages: "web source and configuration" },
+    RuleInfo { id: "APO014", name: "debug-mode-enabled", severity: Severity::High, message: "Debug mode is explicitly enabled; review deployment configuration.", languages: "web source and configuration" },
+    RuleInfo { id: "APO015", name: "untrusted-html-sink", severity: Severity::High, message: "Modeled input reaches HTML rendering; encode output or use a reviewed sanitizer.", languages: "web source and configuration" },
+    RuleInfo { id: "APO016", name: "untrusted-request-url", severity: Severity::High, message: "Modeled input reaches an outbound URL; enforce destination and network restrictions.", languages: "web source and configuration" },
+    RuleInfo { id: "APO017", name: "jwt-verification-disabled", severity: Severity::High, message: "JWT verification is explicitly weakened; enforce signatures and an algorithm allowlist.", languages: "web source and configuration" },
+    RuleInfo { id: "APO018", name: "credentialed-wildcard-cors", severity: Severity::High, message: "Wildcard CORS with credentials requires review of trusted origins.", languages: "web source and configuration" },
+    RuleInfo { id: "APO019", name: "insecure-cookie-setting", severity: Severity::High, message: "Cookie security attributes are explicitly disabled; review transport and script access.", languages: "web source and configuration" },
+    RuleInfo { id: "APO020", name: "service-role-credential", severity: Severity::High, message: "Service-role credential material requires review of privileged client exposure.", languages: "web source and configuration" },
+    RuleInfo { id: "APO021", name: "untrusted-nosql-query", severity: Severity::High, message: "Modeled input reaches a raw NoSQL query; validate a constrained query schema.", languages: "web source and configuration" },
+    RuleInfo { id: "APO022", name: "agent-code-execution-tool", severity: Severity::High, message: "An agent code-execution tool requires explicit authorization, input constraints, and isolation.", languages: "web source and configuration" },
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

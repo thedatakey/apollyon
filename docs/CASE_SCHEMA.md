@@ -53,7 +53,7 @@ checks passed on that disposable copy under the listed bounds.
 
 ## Phase 3 Python-eval adapter
 
-The first adapter is deliberately narrow. It accepts one authorized, tainted
+The first adapter is deliberately narrow. It accepts one authorized, tainted or reachable
 APO004 case mapped to a function-local Python `eval` call. It supports a
 zero-argument function reading `input()` or a function with one positional
 argument. The reproducer uses a fixed payload whose success is a marker in the

@@ -1,0 +1,61 @@
+{
+  "corpus": {
+    "files": 40,
+    "bytes_per_file": 58690,
+    "kind": "synthetic Python; never executed"
+  },
+  "build": "debug",
+  "runs_per_binary": 1,
+  "original": {
+    "seconds": 9.646,
+    "exit": 0,
+    "summary": {
+      "supported_files": 40,
+      "scanned_files": 40,
+      "skipped_files": 0,
+      "skipped_symlinks": 0,
+      "excluded_files": 0,
+      "excluded_directories": 0,
+      "total_bytes": 2347600,
+      "suppressed_errors": 0,
+      "complete": true,
+      "suppressed_findings": 0,
+      "disabled_findings": 0,
+      "new": 0,
+      "baselined": 0,
+      "total": 0,
+      "unselected_files": 0,
+      "missing_selected_files": 0,
+      "unsupported_selected_files": 0,
+      "ast_files": 40,
+      "lexical_files": 0,
+      "parse_fallback_files": 0
+    }
+  },
+  "patched": {
+    "seconds": 8.084,
+    "exit": 0,
+    "summary": {
+      "supported_files": 40,
+      "scanned_files": 40,
+      "skipped_files": 0,
+      "skipped_symlinks": 0,
+      "excluded_files": 0,
+      "excluded_directories": 0,
+      "total_bytes": 2347600,
+      "suppressed_errors": 0,
+      "complete": true,
+      "suppressed_findings": 0,
+      "disabled_findings": 0,
+      "new": 0,
+      "baselined": 0,
+      "total": 0,
+      "unselected_files": 0,
+      "missing_selected_files": 0,
+      "unsupported_selected_files": 0,
+      "ast_files": 40,
+      "lexical_files": 0,
+      "parse_fallback_files": 0
+    }
+  }
+}

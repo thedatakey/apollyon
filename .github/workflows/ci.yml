@@ -45,12 +45,16 @@ jobs:
         run: |
           python3 -m unittest discover -s benchmarks -p 'test_*.py'
           python3 tests/test_release_packaging.py
+          python3 tests/test_distribution.py
+          python3 tests/test_case_confidence.py
+          python3 scripts/validate_audit_corpus.py target/debug/apollyon
           python3 scripts/validate_phase4.py
       - name: Validate VS Code SARIF viewer
         run: |
           node --check vscode-apollyon/extension.js
           node --check vscode-apollyon/sarif.js
           node --test vscode-apollyon/test/*.test.js
+          node --test distribution/npm/bin.test.cjs
 
   msrv:
     runs-on: ubuntu-24.04

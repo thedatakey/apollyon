@@ -8,7 +8,7 @@ use std::{
     path::Path,
 };
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScanSettings {
     pub include_snippets: bool,
     pub excludes: Vec<String>,
@@ -18,8 +18,105 @@ pub struct ScanSettings {
     pub severity: BTreeMap<String, Severity>,
     pub selected_files: Option<BTreeSet<String>>,
     pub interprocedural: bool,
+    pub jobs: usize,
+    pub max_findings: usize,
+    pub max_file_bytes: u64,
+    pub max_total_bytes: usize,
+    pub max_entries: usize,
+    pub no_default_ignores: bool,
+    pub ignore_directories: Vec<String>,
+    pub min_severity: Option<Severity>,
+    pub overrides: Vec<PathOverride>,
+}
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct PathOverride {
+    pub paths: Vec<String>,
+    pub disabled_rules: BTreeSet<String>,
+    pub fail_on: Option<Option<Severity>>,
+}
+impl Default for ScanSettings {
+    fn default() -> Self {
+        Self {
+            include_snippets: false,
+            excludes: Vec::new(),
+            no_gitignore: false,
+            enabled_rules: None,
+            disabled_rules: BTreeSet::new(),
+            severity: BTreeMap::new(),
+            selected_files: None,
+            interprocedural: false,
+            jobs: std::thread::available_parallelism().map_or(1, |n| n.get().min(8)),
+            max_findings: 10_000,
+            max_file_bytes: 2 * 1024 * 1024,
+            max_total_bytes: 256 * 1024 * 1024,
+            max_entries: 100_000,
+            no_default_ignores: false,
+            ignore_directories: Vec::new(),
+            min_severity: None,
+            overrides: Vec::new(),
+        }
+    }
+}
+pub(crate) fn bounded_number(value: &str, maximum: usize) -> Result<usize, String> {
+    value
+        .parse::<usize>()
+        .ok()
+        .filter(|n| *n > 0 && *n <= maximum)
+        .ok_or_else(|| format!("expected integer in 1..={maximum}"))
 }
 impl ScanSettings {
+    pub(crate) fn for_path(&self, path: &str) -> Self {
+        let mut settings = self.clone();
+        for entry in &self.overrides {
+            if entry
+                .paths
+                .iter()
+                .any(|pattern| crate::ignore::glob(pattern, path))
+            {
+                settings
+                    .disabled_rules
+                    .extend(entry.disabled_rules.iter().cloned());
+            }
+        }
+        settings
+    }
+    pub(crate) fn threshold(&self, path: &str, default: Option<Severity>) -> Option<Severity> {
+        let mut threshold = default;
+        for entry in &self.overrides {
+            if entry
+                .paths
+                .iter()
+                .any(|pattern| crate::ignore::glob(pattern, path))
+            {
+                if let Some(value) = entry.fail_on {
+                    threshold = value;
+                }
+            }
+        }
+        threshold
+    }
+    pub(crate) fn validate(&self) -> Result<(), String> {
+        for (name, n, max) in [
+            ("jobs", self.jobs, 32),
+            ("max_findings", self.max_findings, 1_000_000),
+            (
+                "max_file_bytes",
+                self.max_file_bytes as usize,
+                32 * 1024 * 1024,
+            ),
+            (
+                "max_total_bytes",
+                self.max_total_bytes,
+                2 * 1024 * 1024 * 1024,
+            ),
+            ("max_entries", self.max_entries, 2_000_000),
+        ] {
+            if n == 0 || n > max {
+                return Err(format!("{name} must be in 1..={max}"));
+            }
+        }
+        Ok(())
+    }
     pub(crate) fn enabled(&self, id: &str) -> bool {
         self.enabled_rules
             .as_ref()
@@ -127,12 +224,25 @@ fn uncomment(line: &str) -> &str {
     line
 }
 pub(crate) fn parse(source: &str) -> Result<Config, String> {
+    let mut line = 1;
+    parse_lines(source, &mut line).map_err(|error| format!("apollyon.toml line {line}: {error}"))
+}
+fn parse_lines(source: &str, current_line: &mut usize) -> Result<Config, String> {
     let mut result = Config::default();
     let mut section = "";
     let mut seen = BTreeSet::new();
     for (index, line) in source.lines().enumerate() {
+        *current_line = index + 1;
         let line = uncomment(line).trim();
         if line.is_empty() {
+            continue;
+        }
+        if line == "[[overrides]]" {
+            if result.settings.overrides.len() == 128 {
+                return Err("at most 128 overrides are supported".into());
+            }
+            result.settings.overrides.push(PathOverride::default());
+            section = "overrides";
             continue;
         }
         if line == "[severity]" {
@@ -147,8 +257,36 @@ pub(crate) fn parse(source: &str) -> Result<Config, String> {
             .ok_or_else(|| format!("unsupported config syntax at line {}", index + 1))?;
         let key = key.trim();
         let value = value.trim();
-        if !seen.insert(format!("{section}.{key}")) {
+        if !seen.insert(format!(
+            "{section}.{}.{key}",
+            result.settings.overrides.len()
+        )) {
             return Err("duplicate config key".into());
+        }
+        if section == "overrides" {
+            let entry = result
+                .settings
+                .overrides
+                .last_mut()
+                .expect("override section exists");
+            match key {
+                "paths" => {
+                    entry.paths = array(value)?
+                        .into_iter()
+                        .map(|v| crate::cli::normalize_exclude(&v))
+                        .collect::<Result<_, _>>()?
+                }
+                "disabled_rules" => {
+                    let ids = array(value)?;
+                    for id in &ids {
+                        check_rule(id)?;
+                    }
+                    entry.disabled_rules = ids.into_iter().collect();
+                }
+                "fail_on" => entry.fail_on = Some(severity(&string(value)?)?),
+                _ => return Err(format!("unknown override key at line {}", index + 1)),
+            }
+            continue;
         }
         if section == "severity" {
             check_rule(key)?;
@@ -174,9 +312,31 @@ pub(crate) fn parse(source: &str) -> Result<Config, String> {
                     .map(|v| crate::cli::normalize_exclude(&v))
                     .collect::<Result<_, _>>()?;
             }
+            "jobs" => result.settings.jobs = bounded_number(value, 32)?,
+            "max_findings" => result.settings.max_findings = bounded_number(value, 1_000_000)?,
+            "max_file_bytes" => {
+                result.settings.max_file_bytes = bounded_number(value, 32 * 1024 * 1024)? as u64
+            }
+            "max_total_bytes" => {
+                result.settings.max_total_bytes = bounded_number(value, 2 * 1024 * 1024 * 1024)?
+            }
+            "max_entries" => result.settings.max_entries = bounded_number(value, 2_000_000)?,
+            "no_default_ignores" => {
+                result.settings.no_default_ignores = match value {
+                    "true" => true,
+                    "false" => false,
+                    _ => return Err("expected true or false".into()),
+                }
+            }
+            "ignore_directories" => result.settings.ignore_directories = array(value)?,
+            "min_severity" => result.settings.min_severity = severity(&string(value)?)?,
             "fail_on" => result.fail_on = severity(&string(value)?)?,
             _ => return Err(format!("unknown config key at line {}", index + 1)),
         }
+    }
+    result.settings.validate()?;
+    if result.settings.overrides.iter().any(|o| o.paths.is_empty()) {
+        return Err("each override requires nonempty paths".into());
     }
     Ok(result)
 }

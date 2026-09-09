@@ -1,0 +1,64 @@
+{
+  "files": 3000,
+  "bytes_per_file": 65472,
+  "source_sha256": "fdcffafdf4614b57f3f2a7f1e0ac945d639bfe19f742b8bf46deeb29b9837a84",
+  "build": "release",
+  "cpus": 8,
+  "runs": [
+    {
+      "jobs": 8,
+      "seconds": 15.796,
+      "exit": 0,
+      "summary": {
+        "supported_files": 3000,
+        "scanned_files": 3000,
+        "skipped_files": 0,
+        "skipped_symlinks": 0,
+        "excluded_files": 0,
+        "excluded_directories": 0,
+        "total_bytes": 196416000,
+        "suppressed_errors": 0,
+        "complete": true,
+        "suppressed_findings": 0,
+        "disabled_findings": 0,
+        "new": 0,
+        "baselined": 0,
+        "total": 0,
+        "unselected_files": 0,
+        "missing_selected_files": 0,
+        "unsupported_selected_files": 0,
+        "ast_files": 3000,
+        "lexical_files": 0,
+        "parse_fallback_files": 0
+      }
+    },
+    {
+      "jobs": 1,
+      "seconds": 71.542,
+      "exit": 0,
+      "summary": {
+        "supported_files": 3000,
+        "scanned_files": 3000,
+        "skipped_files": 0,
+        "skipped_symlinks": 0,
+        "excluded_files": 0,
+        "excluded_directories": 0,
+        "total_bytes": 196416000,
+        "suppressed_errors": 0,
+        "complete": true,
+        "suppressed_findings": 0,
+        "disabled_findings": 0,
+        "new": 0,
+        "baselined": 0,
+        "total": 0,
+        "unselected_files": 0,
+        "missing_selected_files": 0,
+        "unsupported_selected_files": 0,
+        "ast_files": 3000,
+        "lexical_files": 0,
+        "parse_fallback_files": 0
+      }
+    }
+  ],
+  "byte_identical": true
+}

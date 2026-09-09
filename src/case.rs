@@ -106,7 +106,7 @@ pub(crate) fn write_candidates(
     let result = (|| {
         let mut written = 0;
         for finding in &mut report.findings {
-            if finding.confidence != Confidence::Tainted {
+            if finding.confidence == Confidence::Candidate {
                 continue;
             }
             let id = case_id(&finding.fingerprint);
@@ -146,6 +146,7 @@ mod tests {
                 snippet: None,
                 engine: Engine::Ast,
                 confidence: Confidence::Tainted,
+                trace_depth: 2,
                 trace: vec![TraceStep {
                     path: "app.py".into(),
                     line: 1,

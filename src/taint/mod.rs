@@ -10,6 +10,7 @@ const SOURCES: &[&str] = &[
     "request.args",
     "request.form",
     "request.json",
+    "request.get_json(",
     "request.body",
     "request.headers",
     "req.query",
@@ -25,19 +26,18 @@ const SOURCES: &[&str] = &[
     "sys.argv",
     "input(",
     "readLine(",
-    "open(",
-    "readFile(",
-    "os.ReadFile(",
-    "File.read",
-    "read_to_string",
-    "readObject(",
-    "pickle.load",
-    "yaml.load",
+    "searchParams.get(",
+    "formData.get(",
+    "event.body",
+    "event.data",
+    "completion.choices",
+    "response.output_text",
 ];
-const DIRECT_SOURCES: &[&str] = &[
+const REMOTE_SOURCES: &[&str] = &[
     "request.args",
     "request.form",
     "request.json",
+    "request.get_json(",
     "request.body",
     "request.headers",
     "req.query",
@@ -45,15 +45,43 @@ const DIRECT_SOURCES: &[&str] = &[
     "req.params",
     "r.URL.Query",
     "r.FormValue",
-    "os.environ",
-    "process.env",
-    "std::env::args",
-    "env::args",
-    "stdin",
-    "sys.argv",
-    "input(",
-    "readLine(",
+    "searchParams.get(",
+    "formData.get(",
+    "event.body",
+    "event.data",
+    "completion.choices",
+    "response.output_text",
 ];
+#[derive(Clone, Default)]
+pub(crate) struct Evidence {
+    pub steps: Vec<TraceStep>,
+    pub depth: usize,
+    pub remote: bool,
+}
+impl Value {
+    fn push(&mut self, step: TraceStep, maximum: usize) {
+        self.depth += 1;
+        if self.steps.len() == maximum {
+            self.steps.remove(maximum - 1);
+        }
+        self.steps.push(step);
+    }
+}
+pub(crate) fn sql_sink(call: &crate::ast::Call) -> bool {
+    [
+        "execute",
+        "executemany",
+        "query",
+        "rawQuery",
+        "raw",
+        "prepare",
+        "$queryRawUnsafe",
+        "createStatement",
+        "$executeRawUnsafe",
+    ]
+    .contains(&call.name.as_str())
+        || ["knex.raw", "sequelize.query", "db.run"].contains(&call.qualified_name.as_str())
+}
 const INTEGER_SANITIZERS: &[&str] = &[
     "int(",
     "parseInt(",
@@ -61,10 +89,14 @@ const INTEGER_SANITIZERS: &[&str] = &[
     "Integer.parseInt(",
     "strconv.Atoi(",
 ];
-const SINK_RULES: &[&str] = &["APO004", "APO005", "APO006", "APO011", "APO012"];
+const SINK_RULES: &[&str] = &[
+    "APO004", "APO005", "APO006", "APO011", "APO012", "APO015", "APO016", "APO021",
+];
 #[derive(Clone)]
 struct Value {
     steps: Vec<TraceStep>,
+    depth: usize,
+    remote: bool,
     cleared: BTreeSet<&'static str>,
 }
 fn tokens(text: &str) -> Vec<String> {
@@ -108,7 +140,7 @@ fn apply_allowlist_guard(line: &str, values: &mut BTreeMap<String, Value>) {
     }
 }
 fn direct_source(text: &str) -> bool {
-    DIRECT_SOURCES.iter().any(|source| text.contains(source))
+    source(text)
 }
 
 fn rules(
@@ -124,6 +156,7 @@ fn rules(
     exec::match_rules(&view.code, language, &mut result);
     deserialization::match_rules(&view.code, language, index, csharp, &mut result);
     adoption::match_rules(&view, language, &mut result);
+    crate::rules::web::match_rules(&view, language, &mut result);
     result
         .into_iter()
         .map(|r| r.id)
@@ -136,7 +169,7 @@ pub(crate) fn analyze(
     language: Language,
     ast: &Analysis,
     interprocedural: bool,
-) -> BTreeMap<(usize, &'static str), Vec<TraceStep>> {
+) -> BTreeMap<(usize, &'static str), Evidence> {
     let lines: Vec<_> = source_text.lines().collect();
     let mut states: BTreeMap<(usize, usize), BTreeMap<String, Value>> = BTreeMap::new();
     let mut result = BTreeMap::new();
@@ -146,9 +179,31 @@ pub(crate) fn analyze(
     for (offset, line) in lines.iter().enumerate() {
         let line_no = offset + 1;
         let scope = ast.scope(line_no);
-        let values = states.entry(scope).or_default();
+        if !states.contains_key(&scope) {
+            let mut inherited = states.get(&(1, usize::MAX)).cloned().unwrap_or_default();
+            if let Some(function) = ast.functions.iter().find(|f| f.start == scope.0) {
+                for parameter in &function.parameters {
+                    inherited.remove(parameter);
+                }
+            }
+            states.insert(scope, inherited);
+        }
+        let values = states.get_mut(&scope).expect("scope initialized");
         let source_view = lex_line(line, language, &mut source_lex);
-        let source_line = source_view.masked.as_str();
+        let mut flow_text = source_view.masked.clone();
+        if let Some(expressions) = ast.interpolations.get(&line_no) {
+            for expression in expressions {
+                flow_text.push(' ');
+                flow_text
+                    .push_str(&lex_line(expression, language, &mut LexState::default()).masked);
+            }
+        }
+        let source_line = flow_text.as_str();
+        let mut sink_rules = rules(line, language, &mut lex, &mut csharp, offset);
+        if !ast.reliable(line_no) {
+            values.clear();
+            continue;
+        }
         apply_allowlist_guard(source_line, values);
         let right = source_line.split_once('=').map_or(source_line, |(_, r)| r);
         let mut incoming: Option<Value> = None;
@@ -159,14 +214,17 @@ pub(crate) fn analyze(
                     line: line_no,
                     kind: "source".into(),
                 }],
+                depth: 1,
+                remote: REMOTE_SOURCES.iter().any(|s| right.contains(s)),
                 cleared: BTreeSet::new(),
             });
         }
         for token in tokens(right) {
             if let Some(value) = values.get(token.trim_start_matches('$')) {
-                let take = incoming
-                    .as_ref()
-                    .is_none_or(|old| value.steps.len() < old.steps.len());
+                let take = incoming.as_ref().is_none_or(|old| {
+                    (value.remote && !old.remote)
+                        || (value.remote == old.remote && value.depth < old.depth)
+                });
                 if take {
                     incoming = Some(value.clone());
                 }
@@ -180,33 +238,81 @@ pub(crate) fn analyze(
                     value.cleared.insert("APO005");
                 }
                 if value.steps.last().is_none_or(|s| s.line != line_no) {
-                    value.steps.push(TraceStep {
-                        path: path.into(),
-                        line: line_no,
-                        kind: "propagation".into(),
-                    });
+                    value.push(
+                        TraceStep {
+                            path: path.into(),
+                            line: line_no,
+                            kind: "propagation".into(),
+                        },
+                        8,
+                    );
                 }
-                value.steps.truncate(8);
+
                 values.insert(name, value);
+            } else {
+                values.remove(&name);
             }
         }
-        for rule in rules(line, language, &mut lex, &mut csharp, offset) {
+        if ast.command_calls.contains_key(&line_no) && !sink_rules.contains(&"APO005") {
+            sink_rules.push("APO005");
+        }
+        let sql_input = ast.calls_on_line(line_no).iter().any(|call| {
+            if call.line != line_no || !sql_sink(call) {
+                return false;
+            }
+            let view = lex_line(&call.first_argument, language, &mut LexState::default());
+            direct_source(&view.masked)
+                || tokens(&view.masked)
+                    .iter()
+                    .any(|name| values.contains_key(name))
+        });
+        if sql_input && !sink_rules.contains(&"APO011") {
+            sink_rules.push("APO011");
+        }
+        for rule in sink_rules {
             if !ast.allows(line_no, rule) {
                 continue;
             }
-            let mut evidence = if direct_source(source_line) {
+            let sink_argument = ast.calls_on_line(line_no).iter().find(|call| {
+                call.line == line_no
+                    && match rule {
+                        "APO011" => sql_sink(call),
+                        "APO012" => [
+                            "open",
+                            "fopen",
+                            "readFile",
+                            "readFileSync",
+                            "read_to_string",
+                            "file_get_contents",
+                        ]
+                        .contains(&call.name.as_str()),
+                        _ => false,
+                    }
+            });
+            let argument_view = sink_argument
+                .map(|call| lex_line(&call.first_argument, language, &mut LexState::default()));
+            let evidence_line = argument_view
+                .as_ref()
+                .map_or(source_line, |view| view.masked.as_str());
+            let mut evidence = if direct_source(evidence_line) {
                 Some(Value {
                     steps: vec![TraceStep {
                         path: path.into(),
                         line: line_no,
                         kind: "source".into(),
                     }],
+                    depth: 1,
+                    remote: REMOTE_SOURCES.iter().any(|s| evidence_line.contains(s)),
                     cleared: BTreeSet::new(),
                 })
             } else {
                 None
             };
-            for token in tokens(source_line) {
+            let mut evidence_tokens = tokens(evidence_line);
+            if let Some(argument) = sink_argument.and_then(|call| call.arguments.first()) {
+                evidence_tokens.push(argument.clone());
+            }
+            for token in evidence_tokens {
                 if let Some(value) = values.get(token.trim_start_matches('$')) {
                     if !value.cleared.contains(rule) {
                         evidence = Some(value.clone());
@@ -215,13 +321,22 @@ pub(crate) fn analyze(
                 }
             }
             if let Some(mut value) = evidence {
-                value.steps.push(TraceStep {
-                    path: path.into(),
-                    line: line_no,
-                    kind: "sink".into(),
-                });
-                value.steps.truncate(10);
-                result.insert((line_no, rule), value.steps);
+                value.push(
+                    TraceStep {
+                        path: path.into(),
+                        line: line_no,
+                        kind: "sink".into(),
+                    },
+                    10,
+                );
+                result.insert(
+                    (line_no, rule),
+                    Evidence {
+                        steps: value.steps,
+                        depth: value.depth,
+                        remote: value.remote,
+                    },
+                );
             }
         }
     }
@@ -254,7 +369,7 @@ pub(crate) fn analyze(
                 let mut state = LexState::default();
                 let mut seen = None;
                 for rule in rules(line, language, &mut state, &mut seen, line_no - 1) {
-                    if ast.allows(line_no, rule) {
+                    if ast.reliable(line_no) && ast.allows(line_no, rule) {
                         let mut steps = value.steps.clone();
                         steps.push(TraceStep {
                             path: path.into(),
@@ -267,7 +382,14 @@ pub(crate) fn analyze(
                             kind: "sink".into(),
                         });
                         steps.truncate(10);
-                        result.insert((line_no, rule), steps);
+                        result.insert(
+                            (line_no, rule),
+                            Evidence {
+                                steps,
+                                depth: value.depth + 2,
+                                remote: value.remote,
+                            },
+                        );
                     }
                 }
             }
@@ -287,11 +409,11 @@ mod tests {
         assert!(!r.contains_key(&(7, "APO004")));
     }
     #[test]
-    fn file_reads_taint_returns_and_single_line_allowlists_clear_values() {
+    fn file_reads_are_not_implicit_sources_and_allowlists_clear_values() {
         let src = "def f():\n data = open('input.txt').read()\n eval(data)\ndef g():\n value = request.args['x']\n if value not in ALLOWED: return\n eval(value)\n";
         let ast = crate::ast::analyze(std::path::Path::new("a.py"), src, Language::Python).unwrap();
         let found = analyze("a.py", src, Language::Python, &ast, false);
-        assert!(found.contains_key(&(3, "APO004")));
+        assert!(!found.contains_key(&(3, "APO004")));
         assert!(!found.contains_key(&(7, "APO004")));
     }
     #[test]
