@@ -1,6 +1,6 @@
 # Audit follow-up completion record
 
-Updated 2026-09-09. This is an **unreleased 0.4.0 working-tree implementation**.
+Updated 2026-09-10. This is an **unreleased 0.4.0 implementation**.
 The original audit is historical input, not an instruction source or evidence
 that every suggested heuristic is correct. See [the corrected audit](APOLLYONAUDIT.corrected.md).
 
@@ -28,7 +28,7 @@ that every suggested heuristic is correct. See [the corrected audit](APOLLYONAUD
 
 ## Verification
 
-All build/test commands ran in disposable containers with no network, no host
+Local build/test commands ran in disposable containers with no network, no host
 mounts or credentials, read-only roots, non-root users, dropped capabilities,
 and bounded CPU, memory, process count, writable storage, and lifetime. Source
 fixtures were inert, except explicitly authorized test executables inside those
@@ -66,6 +66,16 @@ and [source manifest](source-manifest.json) record the final verified scope.
 Historical before/after evidence and the eleven original case records remain
 in this directory; their earlier counts are not substituted for these results.
 
+## Cross-platform CI
+
+[Run 34492038254](https://github.com/thedatakey/apollyon/actions/runs/34492038254)
+passed on commit `b5179e66e8aa881bd8df61a7a14e9a218e831968`: Linux, macOS,
+Windows, Rust 1.85 compatibility, and the composite action. Windows verification
+also caught and resolved checkout line-ending differences in embedded CLI help;
+pinned upstream corpus bytes are preserved across platforms.
+These CI checks are separate from the local container evidence above and do not
+replace the release artifact rebuild and installation gates below.
+
 ## Remaining release gates — not represented as completed
 
 - [ ] Run the real macOS/Windows/Linux release matrix and independent rebuilds
@@ -76,7 +86,9 @@ in this directory; their earlier counts are not substituted for these results.
 - [ ] Announce the release only after those publication/installation gates pass.
 
 [Distribution instructions](../../distribution/README.md) describe the prepared
-artifacts and publication sequence. Nothing was tagged, pushed, or published.
+artifacts and publication sequence. The changes were pushed for review in
+[PR #8](https://github.com/thedatakey/apollyon/pull/8). No release was tagged or
+published, and no registry packages were published.
 No unattended future task was created.
 
 ## Deliberate scope decisions

@@ -4,7 +4,7 @@
 
 <p align="center">
   Open-source Rust static analysis for human-written and AI-generated code.<br>
-  Explicit scan coverage · Text, JSON, and SARIF · CI · Coding-agent workflows
+  22 bounded review rules · 13 languages · Explicit scan coverage · CI and coding agents
 </p>
 
 <p align="center">
@@ -32,9 +32,9 @@
 </p>
 
 Apollyon is an evidence-first static analysis CLI written in Rust. It flags
-bounded security-review candidates around unsafe memory operations, dynamic
-code execution, operating-system commands, and unsafe deserialization across
-13 languages—without executing the target project. It works on ordinary local
+bounded security-review candidates for embedded credentials, unsafe input flows,
+SQL, command execution, TLS, memory operations, and selected web/configuration
+patterns across 13 languages, without executing the target project. It works on ordinary local
 source trees, whether the code was written by a person or generated with AI.
 
 Every report records supported, scanned, skipped, and excluded counts, along
@@ -48,12 +48,30 @@ review rules with AST validation, bounded taint traces, and an opt-in case
 workflow for one Python eval boundary. Findings require human validation; a complete scan is not proof
 that a project is secure.
 
+## What changed in the audit follow-up
+
+- **Broader bounded coverage:** 22 rules, selected SQL/ORM flows, provider credential
+  checks, config files, and scripts in Vue, Svelte, and Astro components.
+- **Faster scans with explicit limits:** deterministic parallel workers, configurable
+  resource bounds, and incomplete status when coverage or output is truncated.
+- **Daily workflows:** rule explanations, filters, baselines, configuration setup,
+  watch mode, and a narrow opt-in Python TLS fix with backups.
+- **Offline dependency checks:** supported lockfiles matched against a small,
+  declared advisory snapshot; this is not a comprehensive vulnerability database.
+
+The audit fixes passed **114 Rust, 6 Python, and 6 Node tests** locally.
+[Cross-platform CI](https://github.com/thedatakey/apollyon/actions/runs/34492038254)
+passed Linux, macOS, Windows, Rust 1.85 compatibility, and the composite action.
+The [completion record](docs/audit-2026-09-07/COMPLETION.md) separates measured
+results, analysis limits, and the remaining release/publication gates.
+
 ## Quick start
 
-For this development checkout:
+Install the development version from `main` with Rust 1.85 or newer:
 
 ```sh
-cargo install --path . --locked
+cargo install --locked --git https://github.com/thedatakey/apollyon \
+  --branch main apollyon
 apollyon scan . --production-only --fail-on high
 apollyon explain APO011
 ```
@@ -65,16 +83,16 @@ and the unpublished npm/Homebrew packages. Exact results and remaining gates
 are recorded in the [completion report](docs/audit-2026-09-07/COMPLETION.md).
 
 
-### Install with Cargo
+### Install the older v0.3.0 prerelease
 
-Requires Rust 1.85 or newer:
+For the tagged version without the audit upgrade (Rust 1.85 or newer):
 
 ```sh
 cargo install --locked --git https://github.com/thedatakey/apollyon \
   --tag v0.3.0 apollyon
 ```
 
-### Or download a prebuilt binary
+### Download a v0.3.0 prebuilt binary
 
 The v0.3.0 prerelease provides these archives:
 
@@ -220,38 +238,14 @@ Inline comment suppressions, bounded `.gitignore` handling, and optional
 `apollyon.toml` configuration are documented in [CONFIG.md](docs/CONFIG.md).
 Every hidden candidate remains counted as suppressed, disabled, or baselined.
 
-### Labeled regression results (0.4.0 development)
+### Regression evidence
 
-Each rule below has only **one positive and one negative** synthetic case.
-These percentages describe that small regression corpus, not real-world
-precision or recall. CI fails on any mismatch. Separate pinned upstream samples
-expect zero APO007/APO012 findings; the full original repositories are reviewed
-separately in the completion report.
-
-| Rule | TP / FP / TN / FN | Precision | Recall |
-| --- | --- | --- | --- |
-| APO001 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO002 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO003 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO004 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO005 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO006 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO007 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO008 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO009 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO010 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO011 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO012 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO013 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO014 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO015 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO016 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO017 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO018 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO019 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO020 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO021 | 1 / 0 / 1 / 0 | 100% | 100% |
-| APO022 | 1 / 0 / 1 / 0 | 100% | 100% |
+All 22 rules passed their labeled positive/negative pairs. Each rule has only
+one positive and one negative synthetic case, so these checks do not establish
+production precision or recall. CI also checks pinned upstream negative samples.
+See the [per-rule results](docs/audit-2026-09-07/corpus-results.json) and
+[full audit verification record](docs/audit-2026-09-07/COMPLETION.md) for counts,
+original-corpus reruns, performance measurements, and limitations.
 
 ## Authorized evidence cases
 
