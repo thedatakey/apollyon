@@ -65,3 +65,27 @@ then independently review candidates. No measured accuracy claim is made.
 Use `apollyon explain APO013` (or any registered ID) for a concrete pattern and
 safer approach. [Coverage details and limits](AUDIT_UPGRADE.md) apply to every
 rule. Automatic severity demotion based only on a test filename is not applied.
+
+## Language coverage
+
+Recognizing a language means its files can be parsed; it does not guarantee
+that each library API, declaration form, or flow is modeled. Rule registry
+language labels describe where selected syntax can match, not language parity.
+
+- APO007 regression coverage includes same-line credential literals in all 13
+  source languages, including Go var/const/short declarations, Rust let/const/static,
+  and Kotlin/Swift properties. Multiline and other declaration forms remain bounded.
+- APO008 uses the listed identifiers and crypto factories; it does not resolve
+  every language's crypto libraries or determine cryptographic purpose generally.
+- APO011 models named SQL calls, including JDBC executeQuery/executeUpdate and
+  request.getParameter input. Prepared-statement bound values alone do not qualify.
+- APO012 requires a modeled source and filesystem sink; it does not recognize
+  every framework's request API, filesystem wrapper, or path sanitizer.
+- APO015 includes JavaScript/TypeScript res.send/response.send with HTML-like
+  literals concatenated with modeled input. Receiver names are heuristic;
+  Express imports/types and response content types are not resolved.
+- APO016 covers outbound requests. Express redirects are an open-redirect
+  boundary, not SSRF, and are not currently modeled by this rule.
+
+See the executable rules and source/sink lists for exact bounded patterns.
+Missing a candidate remains possible even when the scan completes.

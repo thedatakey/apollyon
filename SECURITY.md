@@ -28,6 +28,8 @@ disclosure date with the maintainer.
 
 Scanner crashes, unsafe file handling, exposure of secrets in output, and
 false negatives that bypass a documented detection guarantee are in scope.
+Language-recognition and rule-language labels are not detection guarantees;
+they describe bounded patterns documented in [RULES.md](docs/RULES.md).
 Coverage requests and ordinary heuristic false positives/negatives may be
 reported as normal issues when the report contains no sensitive source or
 vulnerability details about another project. A missed candidate alone does

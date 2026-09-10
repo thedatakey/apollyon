@@ -249,7 +249,15 @@ fn dependency_snapshot_boundaries() {
         String::from_utf8_lossy(&o.stdout)
     );
     f.put("requirements.txt", "requests==2.32.5\n");
-    assert!(run().status.success());
+    let clean = run();
+    assert!(clean.status.success());
+    let report: serde_json::Value = serde_json::from_slice(&clean.stdout).unwrap();
+    assert_eq!(report["database_records"], 4);
+    assert_eq!(report["database_retrieved"], "2026-09-08");
+    assert!(report["scope"]
+        .as_str()
+        .unwrap()
+        .contains("absence is not proof"));
     f.put("requirements.txt", "requests>=2.0\n");
     assert_eq!(run().status.code(), Some(3));
 }

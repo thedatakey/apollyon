@@ -114,6 +114,13 @@ fn structured_kind(kind: &str) -> bool {
             | "named_argument"
             | "keyed_element"
             | "field_initializer"
+            | "var_spec"
+            | "const_spec"
+            | "short_var_declaration"
+            | "let_declaration"
+            | "const_item"
+            | "static_item"
+            | "property_declaration"
     )
 }
 

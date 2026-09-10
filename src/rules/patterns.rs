@@ -114,6 +114,8 @@ pub(super) const CRYPTO_FACTORIES: &[&str] = &[
 pub(super) const SQL_APIS: &[&str] = &[
     "execute",
     "executemany",
+    "executeQuery",
+    "executeUpdate",
     "query",
     "rawQuery",
     "createStatement",

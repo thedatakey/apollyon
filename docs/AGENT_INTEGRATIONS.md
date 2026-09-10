@@ -114,3 +114,10 @@ pre-approved.
 
 Add platform-specific hooks or an MCP server only after incremental scanning,
 permission boundaries, and protocol-level tests exist.
+
+### Composite action installation
+
+The action caches its installed binary by source-content digest, Rust toolchain,
+runner OS, and architecture. Cache misses build the selected action revision.
+This keeps unreleased fixes available without silently substituting an older
+release binary. Cache reuse follows GitHub Actions cache access boundaries.
