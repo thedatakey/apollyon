@@ -1,0 +1,163 @@
+   Compiling apollyon v0.4.0 (/work)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.06s
+     Running unittests src/lib.rs (target/debug/deps/apollyon-a7fc72789d9bb0ff)
+
+running 59 tests
+test baseline::tests::rejects_bad_baselines ... ok
+test baseline::tests::accepts_empty ... ok
+test cli::tests::output_rejects_existing_regular_files_without_modifying_them ... ok
+test cli::tests::output_files_are_private_on_unix ... ok
+test case::tests::writes_only_tainted_cases_into_a_new_private_directory ... ok
+test ast::tests::syntax_error_preserves_recovered_tree ... ok
+test cli::tests::scan_defaults_to_redacted_snippets ... ok
+test cli::tests::parses_ci_threshold ... ok
+test cli::tests::parses_sarif_output_and_exclusions ... ok
+test cli::tests::output_rejects_symbolic_links ... ok
+test cli::tests::rejects_unknown_and_incomplete_options ... ok
+test dependencies::tests::disjoint_ranges_and_fixed_boundary ... ok
+test display::tests::terminal_output_escapes_bidi_controls ... ok
+test config::tests::config_validates_and_overrides ... ok
+test config::tests::config_rejects_unknown_duplicate_and_unsupported ... ok
+test ignore::tests::nested_scope ... ok
+test ignore::tests::unsupported_is_explicit ... ok
+test render::tests::json_escapes_all_ascii_controls ... ok
+test lexer::tests::supports_major_manual_project_languages ... ok
+test ignore::tests::patterns_and_negation ... ok
+test ast::tests::parses_priority_languages_and_filters_definitions ... ok
+test rules::adoption::tests::secret_thresholds_and_prefixes ... ok
+test rules::adoption::tests::comments_and_literal_calls_do_not_trigger_rules ... ok
+test rules::secrets::tests::checksum_vectors ... ok
+test rules::adoption::tests::cross_language_positive_and_negative_patterns ... ok
+test rules::secrets::tests::provider_shapes ... ok
+test rules::secrets::tests::valid_classic_checksum_and_mutation ... ok
+test render::tests::machine_outputs_preserve_json_paths_and_encode_sarif_uris ... ok
+test scanner::tests::bounded_reader_rejects_final_symbolic_link ... ok
+test scanner::tests::bounded_reader_rejects_oversize_file ... ok
+test scanner::tests::does_not_confuse_fgets_with_gets ... ok
+test scanner::tests::discovery_ignores_dependencies_and_custom_directories ... ok
+test scanner::tests::discovery_skips_symbolic_links ... ok
+test scanner::tests::emits_each_matching_rule_on_the_same_line ... ok
+test scanner::tests::empty_or_unsupported_directory_is_incomplete ... ok
+test scanner::tests::csharp_unsafe_formatter_flags_deserialize_within_proximity_window ... ok
+test scanner::tests::finds_spaced_unbounded_copy_with_line_number ... ok
+test scanner::tests::detects_ruby_command_style_calls_but_not_method_definitions ... ok
+test scanner::tests::handles_go_raw_strings_without_backslash_escapes ... ok
+test scanner::tests::detects_cross_language_review_boundaries ... ok
+test scanner::tests::ignores_comments_and_string_literals ... ok
+test scanner::tests::handles_rust_lifetimes_nested_comments_and_strings ... ok
+test scanner::tests::csharp_unsafe_formatter_does_not_flag_unrelated_far_deserialize_call ... ok
+test scanner::tests::handles_csharp_verbatim_paths_without_backslash_escapes ... ok
+test scanner::tests::ignores_python_comments_and_multiline_strings ... ok
+test scanner::tests::root_display_does_not_expose_parent_directories ... ok
+test scanner::tests::reports_incomplete_lexical_state ... ok
+test suppression::tests::directive_boundaries ... ok
+test scanner::tests::javascript_regex_literals_do_not_hide_later_calls ... ok
+test scanner::tests::scopes_rules_by_language ... ok
+test scanner::tests::no_snippets_removes_source_from_findings ... ok
+test selection::tests::rejects_escaping_paths ... ok
+test scanner::tests::ruby_regex_literals_do_not_hide_later_commands ... ok
+test taint::tests::file_reads_are_not_implicit_sources_and_allowlists_clear_values ... ok
+test taint::tests::bounded_interprocedural_flow ... ok
+test taint::tests::source_names_inside_literals_do_not_taint ... ok
+test taint::tests::intra_and_sanitized_flows ... ok
+test scanner::tests::enforces_finding_budget_before_allocation ... ok
+test fingerprint::tests::known_vectors ... ok
+
+test result: ok. 59 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running unittests src/main.rs (target/debug/deps/apollyon-d6cff4c7bd3af011)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/audit_regressions.rs (target/debug/deps/audit_regressions-7b3806636393995b)
+
+running 8 tests
+test command_imports_and_argv_severity ... ok
+test audit_seven_case_recall ... ok
+test duplicate_fingerprints_remain_distinct_after_line_insertions ... ok
+test ignores_keep_supported_rules_and_expose_notes ... ok
+test credential_names_and_trailing_comments ... ok
+test usage_is_readable_but_untrusted_newlines_are_escaped ... ok
+test precision_and_parameterized_sql ... ok
+test finding_cap_does_not_skip_later_files_or_hide_truncation ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.34s
+
+     Running tests/completion.rs (target/debug/deps/completion-1f6c59800f6d9e4b)
+
+running 18 tests
+test cli_help_documents_every_parser_flag ... ok
+test command_binding_shadowing ... ok
+test config_secrets_and_safe_configuration ... ok
+test fix_backup_is_byte_exact ... ok
+test fixes_only_real_requests_keyword_arguments ... ok
+test malformed_dependency_inventory_is_incomplete ... ok
+test dependency_snapshot_boundaries ... ok
+test node_shebang_is_not_an_unterminated_regex ... ok
+test local_remote_scope_and_trace_depth ... ok
+test modern_syntax_preserves_ast ... ok
+test raw_orm_and_explicit_deserialization ... ok
+test sql_interpolation_and_component_scripts ... ok
+test overrides_filters_and_globs ... ok
+test new_web_rules_and_negative_flows ... ok
+test automatic_baseline_can_be_disabled ... ok
+test formats_init_explain_watch_and_fix ... ok
+test serial_parallel_outputs_and_limits ... ok
+test pinned_upstream_precision ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/golden_output.rs (target/debug/deps/golden_output-fa272c43040e8447)
+
+running 11 tests
+test excluded_json ... ok
+test manual_text ... ok
+test excluded_sarif ... ok
+test manual_json ... ok
+test manual_sarif ... ok
+test excluded_text ... ok
+test library_rendering_matches_the_cli_snapshot ... ok
+test snippets_json ... ok
+test cli_exit_codes_preserve_threshold_invocation_and_incomplete_contracts ... ok
+test snippets_sarif ... ok
+test snippets_text ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/phase1.rs (target/debug/deps/phase1-ebc3de743cef6796)
+
+running 11 tests
+test incomplete_scan_does_not_write_baseline ... ok
+test changed_files_accounts_for_unselected_and_deleted_paths ... ok
+test secret_lines_are_redacted_even_for_other_rules_and_disabled_secret_detection ... ok
+test new_rules_have_positive_and_negative_fixtures ... ok
+test slash_block_comments_and_strings_have_distinct_suppression_scope ... ok
+test path_expressions_and_unsupported_selected_files_are_explicit ... ok
+test config_precedence_and_invalid_syntax ... ok
+test baseline_survives_line_insertions_and_counts_new_findings ... ok
+test suppressions_are_comment_only_and_counted ... ok
+test gitignore_nested_negation_and_override_are_counted ... ok
+test diff_selects_worktree_changes_and_handles_errors ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/phase2.rs (target/debug/deps/phase2-6513ccafb2886f33)
+
+running 5 tests
+test recovered_tree_keeps_valid_calls_and_records_parse_errors ... ok
+test tainted_and_sanitized_flows_have_bounded_evidence ... ok
+test ast_filter_removes_function_definition_substring_candidates ... ok
+test interprocedural_mode_is_opt_in_and_one_boundary ... ok
+test every_supported_language_uses_an_ast_for_valid_source ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/phase3.rs (target/debug/deps/phase3-c5bc1f56064dc554)
+
+running 2 tests
+test case_generation_requires_explicit_authorization ... ok
+test tainted_findings_create_authorized_candidate_cases_and_references ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

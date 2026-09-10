@@ -1,10 +1,10 @@
 <h1 align="center">Apollyon — Source Code Security Scanner</h1>
 
-<p align="center"><strong>Find review-worthy patterns. See the scan's coverage and completion state.</strong></p>
+<p align="center"><strong>Find embedded credentials and risky input flows before shipping.</strong></p>
 
 <p align="center">
   Open-source Rust static analysis for human-written and AI-generated code.<br>
-  Explicit scan coverage · Text, JSON, and SARIF · CI · Coding-agent workflows
+  22 bounded review rules · 13 languages · Explicit scan coverage · CI and coding agents
 </p>
 
 <p align="center">
@@ -32,9 +32,9 @@
 </p>
 
 Apollyon is an evidence-first static analysis CLI written in Rust. It flags
-bounded security-review candidates around unsafe memory operations, dynamic
-code execution, operating-system commands, and unsafe deserialization across
-13 languages—without executing the target project. It works on ordinary local
+bounded security-review candidates for embedded credentials, unsafe input flows,
+SQL, command execution, TLS, memory operations, and selected web/configuration
+patterns across 13 languages, without executing the target project. It works on ordinary local
 source trees, whether the code was written by a person or generated with AI.
 
 Every report records supported, scanned, skipped, and excluded counts, along
@@ -42,23 +42,57 @@ with errors and whether the scan completed. Use terminal text for local review,
 versioned JSON v2 with engine, confidence, and source-to-sink traces for coding agents and automation, or SARIF 2.1.0 for CI and
 GitHub code scanning.
 
-**Status: public pre-alpha v0.3.0.** Apollyon currently implements twelve bounded
+**Status: public pre-alpha; this checkout is the unreleased 0.4.0 development version.**
+The v0.3.0 downloads below do not include the audit upgrade. This checkout implements 22 bounded
 review rules with AST validation, bounded taint traces, and an opt-in case
 workflow for one Python eval boundary. Findings require human validation; a complete scan is not proof
 that a project is secure.
 
+## What changed in the audit follow-up
+
+- **Broader bounded coverage:** 22 rules, selected SQL/ORM flows, provider credential
+  checks, config files, and scripts in Vue, Svelte, and Astro components.
+- **Faster scans with explicit limits:** deterministic parallel workers, configurable
+  resource bounds, and incomplete status when coverage or output is truncated.
+- **Daily workflows:** rule explanations, filters, baselines, configuration setup,
+  watch mode, and a narrow opt-in Python TLS fix with backups.
+- **Offline dependency checks:** supported lockfiles matched against a small,
+  declared advisory snapshot; this is not a comprehensive vulnerability database.
+
+The audit fixes passed **114 Rust, 6 Python, and 6 Node tests** locally.
+[Cross-platform CI](https://github.com/thedatakey/apollyon/actions/runs/34492038254)
+passed Linux, macOS, Windows, Rust 1.85 compatibility, and the composite action.
+The [completion record](docs/audit-2026-09-07/COMPLETION.md) separates measured
+results, analysis limits, and the remaining release/publication gates.
+
 ## Quick start
 
-### Install with Cargo
+Install the development version from `main` with Rust 1.85 or newer:
 
-Requires Rust 1.85 or newer:
+```sh
+cargo install --locked --git https://github.com/thedatakey/apollyon \
+  --branch main apollyon
+apollyon scan . --production-only --fail-on high
+apollyon explain APO011
+```
+
+The [complete CLI reference](docs/CLI.txt) is also the exact `--help` source.
+The [audit upgrade guide](docs/AUDIT_UPGRADE.md) documents parallel scanning,
+filters, config/component coverage, init/watch/fix, offline dependency checks,
+and the unpublished npm/Homebrew packages. Exact results and remaining gates
+are recorded in the [completion report](docs/audit-2026-09-07/COMPLETION.md).
+
+
+### Install the older v0.3.0 prerelease
+
+For the tagged version without the audit upgrade (Rust 1.85 or newer):
 
 ```sh
 cargo install --locked --git https://github.com/thedatakey/apollyon \
   --tag v0.3.0 apollyon
 ```
 
-### Or download a prebuilt binary
+### Download a v0.3.0 prebuilt binary
 
 The v0.3.0 prerelease provides these archives:
 
@@ -96,17 +130,27 @@ an explicit coverage summary:
 
 ```text
 $ apollyon scan tests/fixtures/manual-project --exclude generated
-[HIGH] APO006 src/Service.java:5
-  Deserialization API may construct attacker-controlled objects...
-[HIGH] APO004 src/app.py:5
-  Dynamic code execution requires review...
-[HIGH] APO001 src/legacy.c:4
-  Unbounded C string operation may permit memory corruption...
-[MEDIUM] APO005 src/runner.ts:4
-  Operating-system command execution requires review...
+Apollyon: scan complete — 5 findings (4 high, 1 medium, 0 info).
+Findings require review; scan completion is not a security verdict.
 
-5 finding(s); 4/4 supported file(s) scanned; 530 byte(s) read;
-0 symlink(s) skipped; 0 file(s) and 2 directories excluded; complete: true.
+[HIGH] APO006 src/Service.java:5 (ast/candidate)
+  Deserialization API may construct attacker-controlled objects; require a safe format, trusted input, or an explicit allowlist.
+  Next: apollyon explain APO006
+[HIGH] APO004 src/app.py:5 (ast/candidate)
+  Dynamic code execution requires review of whether code or input can be influenced by an attacker.
+  Next: apollyon explain APO004
+[HIGH] APO006 src/app.py:9 (ast/candidate)
+  Deserialization API may construct attacker-controlled objects; require a safe format, trusted input, or an explicit allowlist.
+  Next: apollyon explain APO006
+[HIGH] APO001 src/legacy.c:4 (ast/candidate)
+  Unbounded C string operation may permit memory corruption; use a length-aware API and verify destination bounds.
+  Next: apollyon explain APO001
+[MEDIUM] APO005 src/runner.ts:4 (ast/candidate)
+  Operating-system command execution requires review of argument separation, shell use, and untrusted input.
+  Next: apollyon explain APO005
+
+5 finding(s); 4/4 supported file(s) scanned; 530 byte(s) read; 0 symlink(s) skipped; 0 file(s) and 2 directories excluded; complete: true.
+5 new; 0 baselined; 0 suppressed; 0 disabled; 5 total candidate(s); 0 unselected file(s); 0 missing selected path(s); 0 unsupported selected path(s); 4 AST file(s); 0 lexical fallback file(s).
 ```
 
 The summary is part of the evidence. `complete: true` describes bounded scan
@@ -142,6 +186,16 @@ incomplete."
 
 ## Current capabilities
 
+The table below describes the original twelve families. APO013–APO022 add
+public credential exposure, debug mode, XSS, SSRF, JWT, CORS, cookies, privileged
+service credentials, NoSQL, and agent tool candidates. See [all rules](docs/RULES.md).
+
+Regression measurements cover 22 labeled positive/negative pairs and pinned
+upstream negative samples. These small tests do not establish real-world
+precision; [measurement output](docs/audit-2026-09-07/corpus-results.json)
+records per-rule counts when the gate has passed.
+
+
 Apollyon recognizes source files across 13 languages: C, C++, C#, Go, Java,
 Kotlin, JavaScript, TypeScript, PHP, Python, Ruby, Rust, and Swift. Rule coverage
 is intentionally narrow and language-specific; recognition does not imply broad
@@ -160,7 +214,7 @@ semantic coverage. Run `apollyon rules` for the executable rule registry.
 | `APO009` | info | Non-cryptographic randomness | C, C++, Java, Kotlin, JavaScript, TypeScript, PHP, Python |
 | `APO010` | high | Disabled TLS verification | C, C++, Go, Java, Kotlin, JavaScript, TypeScript, PHP, Python |
 | `APO011` | medium | Dynamically assembled SQL | All supported languages |
-| `APO012` | medium | Variable filesystem path | All supported languages |
+| `APO012` | medium | Modeled input in filesystem path | All supported languages |
 
 For a static workspace snapshot, Apollyon skips symbolic links, ignores common
 dependency/build directories, supports explicit file and directory exclusions,
@@ -183,6 +237,15 @@ apollyon scan project --no-gitignore --disable-rule APO009
 Inline comment suppressions, bounded `.gitignore` handling, and optional
 `apollyon.toml` configuration are documented in [CONFIG.md](docs/CONFIG.md).
 Every hidden candidate remains counted as suppressed, disabled, or baselined.
+
+### Regression evidence
+
+All 22 rules passed their labeled positive/negative pairs. Each rule has only
+one positive and one negative synthetic case, so these checks do not establish
+production precision or recall. CI also checks pinned upstream negative samples.
+See the [per-rule results](docs/audit-2026-09-07/corpus-results.json) and
+[full audit verification record](docs/audit-2026-09-07/COMPLETION.md) for counts,
+original-corpus reruns, performance measurements, and limitations.
 
 ## Authorized evidence cases
 

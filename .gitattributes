@@ -1,2 +1,6 @@
 # Exact-output fixtures and scanned sources must have stable bytes on Windows.
 /tests/fixtures/** text eol=lf
+# Embedded help is part of the exact CLI output contract.
+/docs/CLI.txt text eol=lf
+# Keep upstream samples byte-identical to their recorded SHA-256 digests.
+/benchmarks/upstream/** -text

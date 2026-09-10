@@ -1,0 +1,1 @@
+{"direct_path": true, "distinct_fingerprints": true, "ignore_common_patterns": true, "multiline_sql": true, "nonsecurity_md5": true, "ordinary_file_io": true, "readable_usage": true, "secret_false_positives": true, "segmented_secret": true}

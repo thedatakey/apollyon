@@ -22,7 +22,17 @@ pub fn render_rules() -> String {
 }
 
 pub fn render_text(report: &ScanReport) -> String {
-    let mut output = String::new();
+    let high = report
+        .findings
+        .iter()
+        .filter(|f| f.severity == crate::Severity::High)
+        .count();
+    let medium = report
+        .findings
+        .iter()
+        .filter(|f| f.severity == crate::Severity::Medium)
+        .count();
+    let mut output = format!("Apollyon: {} — {} findings ({} high, {} medium, {} info).\nFindings require review; scan completion is not a security verdict.\n\n", if report.complete {"scan complete"} else {"scan incomplete"},report.findings.len(),high,medium,report.findings.len()-high-medium);
     for finding in &report.findings {
         let _ = writeln!(
             output,
@@ -35,6 +45,7 @@ pub fn render_text(report: &ScanReport) -> String {
             finding.confidence.as_str(),
             finding.message
         );
+        let _ = writeln!(output, "  Next: apollyon explain {}", finding.rule_id);
         for step in &finding.trace {
             let _ = writeln!(
                 output,
@@ -73,6 +84,9 @@ pub fn render_text(report: &ScanReport) -> String {
         report.complete
     );
     let _ = writeln!(output, "{} new; {} baselined; {} suppressed; {} disabled; {} total candidate(s); {} unselected file(s); {} missing selected path(s); {} unsupported selected path(s); {} AST file(s); {} lexical fallback file(s).", report.findings.len(), report.baselined_findings, report.suppressed_findings, report.disabled_findings, report.total_findings, report.unselected_files, report.missing_selected_files, report.unsupported_selected_files, report.ast_files, report.lexical_files);
+    for note in &report.notes {
+        let _ = writeln!(output, "note: {}", safe_terminal(note));
+    }
     for error in &report.errors {
         let _ = writeln!(output, "warning: {}", safe_terminal(error));
     }

@@ -20,12 +20,14 @@ impl Engine {
 pub enum Confidence {
     Candidate,
     Tainted,
+    Reachable,
 }
 impl Confidence {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Candidate => "candidate",
             Self::Tainted => "tainted",
+            Self::Reachable => "reachable",
         }
     }
 }
@@ -47,6 +49,7 @@ pub struct Finding {
     pub engine: Engine,
     pub confidence: Confidence,
     pub trace: Vec<TraceStep>,
+    pub trace_depth: usize,
     pub fingerprint: String,
     pub case_refs: Vec<String>,
 }
@@ -63,9 +66,12 @@ pub struct ScanReport {
     pub total_bytes: usize,
     pub complete: bool,
     pub errors: Vec<String>,
+    pub notes: Vec<String>,
     pub suppressed_errors: usize,
     pub findings: Vec<Finding>,
     pub total_findings: usize,
+    pub truncated_findings: usize,
+    pub filtered_findings: usize,
     pub suppressed_findings: usize,
     pub disabled_findings: usize,
     pub baselined_findings: usize,
@@ -73,6 +79,7 @@ pub struct ScanReport {
     pub missing_selected_files: usize,
     pub unsupported_selected_files: usize,
     pub ast_files: usize,
+    pub error_nodes: usize,
     pub lexical_files: usize,
     pub parse_fallback_files: usize,
 }

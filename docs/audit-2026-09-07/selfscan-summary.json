@@ -1,0 +1,27 @@
+{
+  "exit": 0,
+  "summary": {
+    "supported_files": 60,
+    "scanned_files": 60,
+    "skipped_files": 0,
+    "skipped_symlinks": 0,
+    "excluded_files": 0,
+    "excluded_directories": 3,
+    "total_bytes": 280488,
+    "suppressed_errors": 0,
+    "complete": true,
+    "suppressed_findings": 0,
+    "disabled_findings": 0,
+    "new": 33,
+    "baselined": 0,
+    "total": 33,
+    "unselected_files": 0,
+    "missing_selected_files": 0,
+    "unsupported_selected_files": 0,
+    "ast_files": 60,
+    "lexical_files": 0,
+    "parse_fallback_files": 0
+  },
+  "errors": [],
+  "notes": []
+}

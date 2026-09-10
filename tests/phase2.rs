@@ -82,15 +82,16 @@ fn interprocedural_mode_is_opt_in_and_one_boundary() {
     assert!(report.findings[0].trace.iter().any(|s| s.kind == "call"));
 }
 #[test]
-fn parse_failures_fall_back_without_claiming_ast_coverage() {
+fn recovered_tree_keeps_valid_calls_and_records_parse_errors() {
     let w = Workspace::new();
     w.write("broken.py", "eval(value)\ndef broken(:\n");
     let report = apollyon::scan_path(&w.0, false, &[]);
     assert!(report.complete);
-    assert_eq!(report.ast_files, 0);
-    assert_eq!(report.lexical_files, 1);
-    assert_eq!(report.parse_fallback_files, 1);
-    assert_eq!(report.findings[0].engine, apollyon::Engine::Lexical);
+    assert_eq!(report.ast_files, 1);
+    assert_eq!(report.lexical_files, 0);
+    assert_eq!(report.parse_fallback_files, 0);
+    assert!(report.error_nodes > 0);
+    assert_eq!(report.findings[0].engine, apollyon::Engine::Ast);
     assert_eq!(
         report.findings[0].confidence,
         apollyon::Confidence::Candidate

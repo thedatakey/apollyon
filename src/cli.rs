@@ -12,6 +12,9 @@ pub(crate) enum OutputFormat {
     Text,
     Json,
     Sarif,
+    Markdown,
+    Github,
+    Gitlab,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -41,6 +44,18 @@ pub(crate) struct Controls {
     pub authorized: bool,
     pub repository: Option<String>,
     pub revision: Option<String>,
+    pub numbers: Vec<(String, usize)>,
+    pub only: Option<Vec<String>>,
+    pub min_severity: Option<Severity>,
+    pub no_default_ignores: bool,
+    pub no_auto_baseline: bool,
+    pub production_only: bool,
+    pub quiet: bool,
+    pub color: Option<String>,
+    pub watch: bool,
+    pub watch_count: Option<usize>,
+    pub fix: bool,
+    pub fix_dry_run: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -48,16 +63,54 @@ pub(crate) enum Command {
     Help,
     Rules,
     Version,
+    Explain(String),
+    Dependencies(PathBuf, Option<PathBuf>),
+    Init(PathBuf, bool, bool),
     Scan(Box<ScanOptions>),
 }
 
 pub(crate) fn usage() -> &'static str {
-    "Apollyon — bounded, evidence-first source assessment\n\n\
-Usage:\n  apollyon scan <path> [--format text|json|sarif] [--output <file>] [--exclude <path>]...\n                       [--include-snippets] [--fail-on info|medium|high|never]\n                       [--baseline <file>] [--write-baseline <file>]\n                       [--diff <git-ref> | --changed-files <file>] [--no-gitignore]\n                       [--enable-rule <id>] [--disable-rule <id>] [--severity <id>=<level>] [--interprocedural]\n                       [--cases-dir <new-directory> --authorized [--repository <id>] [--revision <id>]]\n  apollyon rules\n  apollyon --version\n  apollyon --help\n\n\
-Exit codes: 0 complete, 1 finding met --fail-on, 2 invocation/output error, 3 incomplete scan."
+    include_str!("../docs/CLI.txt")
 }
 
 pub(crate) fn parse_args(args: &[String]) -> Result<Command, String> {
+    if args.first().is_some_and(|a| a == "deps") {
+        let root = args.get(1).ok_or("deps requires a project path")?;
+        let db = match args.len() {
+            2 => None,
+            4 if args[2] == "--database" => Some(PathBuf::from(&args[3])),
+            _ => return Err("deps <path> [--database <OSV JSON>]".into()),
+        };
+        return Ok(Command::Dependencies(root.into(), db));
+    }
+    if matches!(
+        args.first().map(String::as_str),
+        Some("explain" | "--explain")
+    ) {
+        if args.len() != 2 {
+            return Err("explain requires one rule ID".into());
+        }
+        crate::config::check_rule(&args[1])?;
+        return Ok(Command::Explain(args[1].clone()));
+    }
+    if args.first().is_some_and(|a| a == "init") {
+        let mut root = PathBuf::from(".");
+        let mut explicit = false;
+        let mut action = false;
+        let mut hook = false;
+        for arg in &args[1..] {
+            match arg.as_str() {
+                "--github-action" => action = true,
+                "--pre-commit" => hook = true,
+                value if !value.starts_with('-') && !explicit => {
+                    root = value.into();
+                    explicit = true;
+                }
+                _ => return Err("init accepts [path] [--github-action] [--pre-commit]".into()),
+            }
+        }
+        return Ok(Command::Init(root, action, hook));
+    }
     match args.first().map(String::as_str) {
         Some("--help" | "-h" | "help") if args.len() == 1 => return Ok(Command::Help),
         Some("rules") if args.len() == 1 => return Ok(Command::Rules),
@@ -82,6 +135,97 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Command, String> {
     let mut index = 2;
     while index < args.len() {
         match args[index].as_str() {
+            "--jobs" | "--max-findings" | "--max-file-bytes" | "--max-total-bytes"
+            | "--max-entries" | "--watch-count" => {
+                let flag = args[index].as_str();
+                let maximum = match flag {
+                    "--jobs" => 32,
+                    "--max-findings" => 1_000_000,
+                    "--max-file-bytes" => 32 * 1024 * 1024,
+                    "--max-total-bytes" => 2 * 1024 * 1024 * 1024,
+                    "--max-entries" => 2_000_000,
+                    _ => 10_000,
+                };
+                let value = crate::config::bounded_number(
+                    args.get(index + 1)
+                        .ok_or("numeric option requires a value")?,
+                    maximum,
+                )?;
+                if flag == "--watch-count" {
+                    options.controls.watch_count = Some(value);
+                } else {
+                    options
+                        .controls
+                        .numbers
+                        .push((flag.trim_start_matches("--").replace('-', "_"), value));
+                }
+                index += 2;
+            }
+            "--only" | "--min-severity" | "--color" => {
+                let flag = args[index].as_str();
+                let value = args.get(index + 1).ok_or("option requires a value")?;
+                match flag {
+                    "--only" => {
+                        let ids: Vec<_> = value.split(',').map(str::to_owned).collect();
+                        for id in &ids {
+                            crate::config::check_rule(id)?;
+                        }
+                        options.controls.only = Some(ids);
+                    }
+                    "--min-severity" => {
+                        options.controls.min_severity = Some(
+                            crate::config::severity(value)?
+                                .ok_or("min-severity cannot be never")?,
+                        )
+                    }
+                    _ => {
+                        if !["auto", "always", "never"].contains(&value.as_str()) {
+                            return Err("color must be auto, always, or never".into());
+                        }
+                        options.controls.color = Some(value.clone());
+                    }
+                }
+                index += 2;
+            }
+            "--no-auto-baseline" => {
+                options.controls.no_auto_baseline = true;
+                index += 1;
+            }
+            "--json" => {
+                options.format = OutputFormat::Json;
+                index += 1;
+            }
+            "--no-default-ignores" => {
+                options.controls.no_default_ignores = true;
+                index += 1;
+            }
+            "--production-only" => {
+                options.controls.production_only = true;
+                index += 1;
+            }
+            "--include-tests" => {
+                options.controls.production_only = false;
+                index += 1;
+            }
+            "--quiet" => {
+                options.controls.quiet = true;
+                index += 1;
+            }
+            "--stats" => {
+                index += 1;
+            }
+            "--watch" => {
+                options.controls.watch = true;
+                index += 1;
+            }
+            "--fix" => {
+                options.controls.fix = true;
+                index += 1;
+            }
+            "--fix-dry-run" => {
+                options.controls.fix_dry_run = true;
+                index += 1;
+            }
             "--baseline" | "--write-baseline" | "--changed-files" | "--diff" | "--enable-rule"
             | "--disable-rule" | "--severity" | "--cases-dir" | "--repository" | "--revision" => {
                 let flag = args[index].as_str();
@@ -137,6 +281,9 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Command, String> {
                     "text" => OutputFormat::Text,
                     "json" => OutputFormat::Json,
                     "sarif" => OutputFormat::Sarif,
+                    "markdown" => OutputFormat::Markdown,
+                    "github" => OutputFormat::Github,
+                    "gitlab" => OutputFormat::Gitlab,
                     _ => return Err("--format must be text, json, or sarif".to_owned()),
                 };
                 index += 2;
@@ -193,6 +340,20 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Command, String> {
     if options.controls.cases_dir.is_none() && case_metadata {
         return Err("--authorized, --repository, and --revision require --cases-dir".into());
     }
+    if options.controls.watch
+        && (options.output.is_some()
+            || options.controls.write_baseline.is_some()
+            || options.controls.cases_dir.is_some()
+            || options.controls.fix
+            || options.controls.fix_dry_run)
+    {
+        return Err(
+            "watch is incompatible with file output, case/baseline writing, and fixes".into(),
+        );
+    }
+    if options.controls.watch_count.is_some() && !options.controls.watch {
+        return Err("watch-count requires watch".into());
+    }
     Ok(Command::Scan(Box::new(options)))
 }
 
@@ -215,7 +376,7 @@ pub(crate) fn normalize_exclude(value: &str) -> Result<String, String> {
 }
 
 pub(crate) fn emit_output(rendered: &str, output_path: Option<&Path>) -> Result<(), String> {
-    if let Some(path) = output_path {
+    if let Some(path) = output_path.filter(|p| *p != Path::new("-")) {
         let mut contents = rendered.to_owned();
         if !contents.ends_with('\n') {
             contents.push('\n');

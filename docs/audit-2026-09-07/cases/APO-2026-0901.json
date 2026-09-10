@@ -1,0 +1,67 @@
+{
+  "schema": "apollyon.case/v1",
+  "case_id": "APO-2026-0901",
+  "status": "verified",
+  "transitions": [
+    "candidate",
+    "validated",
+    "remediated",
+    "verified"
+  ],
+  "scope": {
+    "repository": "local/apollyon",
+    "revision": "c18edd8c5272cf5d04fbdc08d9fff347bfb800af plus working-tree patch",
+    "authorized": true
+  },
+  "claim": {
+    "summary": "ignore parsing",
+    "affected_locations": [
+      {
+        "path": "src/ignore.rs"
+      }
+    ]
+  },
+  "evidence": {
+    "discovery": [
+      {
+        "description": "ignore_common_patterns"
+      }
+    ],
+    "reproducer": "See ../README.md, ../before.json and the named regression test. Fixtures are inert.",
+    "sandbox": {
+      "image": "sha256:240a5dade4cd19a83f8023c2f5598c6dc2c68e76f9c5ef71ccf41010e926dd2e",
+      "network": "none",
+      "host_mounts": 0,
+      "cpus": 4,
+      "memory_bytes": 4294967296,
+      "pids": 256,
+      "read_only_root": true
+    },
+    "assumptions": [
+      "Bounded scanner behavior, not application exploitability."
+    ]
+  },
+  "remediation": {
+    "patch": "Working-tree diff in src/ignore.rs; tested on disposable copied source.",
+    "regression_tests": [
+      "ignores_keep_supported_rules_and_expose_notes"
+    ]
+  },
+  "verification": {
+    "method": "Original behavior reproduction plus changed-copy regression checks",
+    "command": "cargo test --offline --locked --all-targets --all-features",
+    "bounds": [
+      "Offline disposable container",
+      "600-second command timeout",
+      "Fixture sources are never executed"
+    ],
+    "tool_versions": [
+      "Rust 1.97.1",
+      "Apollyon 0.3.0"
+    ],
+    "result": "passed"
+  },
+  "limitations": [
+    "Only the named property is verified. See ../README.md for unresolved report proposals."
+  ]
+}

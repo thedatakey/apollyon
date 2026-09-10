@@ -90,17 +90,6 @@ pub(super) fn contains_any_ruby_command(code: &str, names: &[&str]) -> bool {
 // Phase 1 pattern tables. These are lexical review boundaries, not verdicts.
 pub(super) const SECRET_NAMES: &[&str] =
     &["password", "passwd", "api_key", "apikey", "secret", "token"];
-pub(super) const SECRET_PREFIXES: &[(&str, usize)] = &[
-    ("AKIA", 20),
-    ("ghp_", 36),
-    ("xoxb-", 20),
-    ("xoxa-", 20),
-    ("xoxp-", 20),
-    ("xoxr-", 20),
-    ("xoxs-", 20),
-    ("sk-", 32),
-    ("AIza", 35),
-];
 pub(super) const WEAK_CRYPTO: &[&str] = &[
     "MD5",
     "md5",
@@ -128,6 +117,10 @@ pub(super) const SQL_APIS: &[&str] = &[
     "query",
     "rawQuery",
     "createStatement",
+    "raw",
+    "prepare",
+    "$queryRawUnsafe",
+    "$executeRawUnsafe",
 ];
 pub(super) const SQL_KEYWORDS: &[&str] = &["SELECT ", "INSERT ", "UPDATE ", "DELETE "];
 pub(super) const PATH_APIS: &[&str] = &[

@@ -52,7 +52,7 @@ def main() -> int:
     assert {finding["rule_id"] for finding in report["findings"]} == EXPECTED_RULES
     assert all(finding["snippet"] is None for finding in report["findings"])
     assert all(finding["engine"] in {"ast", "lexical"} for finding in report["findings"])
-    assert all(finding["confidence"] in {"candidate", "tainted"} for finding in report["findings"])
+    assert all(finding["confidence"] in {"candidate", "tainted", "reachable"} for finding in report["findings"])
     assert all(isinstance(finding["trace"], list) for finding in report["findings"])
     assert report["summary"]["ast_files"] + report["summary"]["lexical_files"] == report["summary"]["scanned_files"]
     assert all(not Path(finding["path"]).is_absolute() for finding in report["findings"])

@@ -1,0 +1,86 @@
+{
+  "date": "2026-09-09",
+  "version": "0.4.0",
+  "release_status": "unreleased working tree",
+  "base_revision": "c18edd8c5272cf5d04fbdc08d9fff347bfb800af",
+  "source_manifest": "source-manifest.json",
+  "sandbox": {
+    "network": "none",
+    "host_mounts": 0,
+    "user": "65532:65532",
+    "read_only_root": true,
+    "capabilities": "all dropped",
+    "no_new_privileges": true,
+    "cpus": 8,
+    "memory_bytes": 6442450944,
+    "pids": 256,
+    "writable_work_bytes": 4294967296,
+    "lifetime_seconds": 7200,
+    "primary_image": "sha256:240a5dade4cd19a83f8023c2f5598c6dc2c68e76f9c5ef71ccf41010e926dd2e"
+  },
+  "checks": [
+    {
+      "command": "cargo test --offline --locked --all-targets --all-features",
+      "result": "passed",
+      "tests": 114
+    },
+    {
+      "command": "cargo fmt --all --check",
+      "result": "passed"
+    },
+    {
+      "command": "cargo clippy --offline --locked --all-targets --all-features -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "cargo +1.85.0 check --offline --locked",
+      "result": "passed"
+    },
+    {
+      "command": "cargo package --offline --locked",
+      "result": "passed"
+    },
+    {
+      "command": "node --test distribution/npm/bin.test.cjs vscode-apollyon/test/*.test.js",
+      "result": "passed",
+      "tests": 6
+    },
+    {
+      "command": "Python benchmark, archive, distribution, adapter admission tests",
+      "result": "passed",
+      "tests": 6
+    },
+    {
+      "command": "validate_agents.py; validate_integrations.py; validate_outputs.py; validate_release.py; validate_phase4.py",
+      "result": "passed"
+    },
+    {
+      "command": "validate_audit_corpus.py",
+      "result": "passed",
+      "synthetic_cases": 44,
+      "upstream_samples": 3
+    },
+    {
+      "command": "actionlint -shellcheck= -pyflakes= .github/workflows/*.yml",
+      "result": "passed"
+    }
+  ],
+  "limitations": [
+    "Native macOS/Windows release builds and real registry/tap installation were not run.",
+    "No packages, tags, or policy announcements were published.",
+    "Full Docker/Z3/Atheris adapter execution was not repeated; changed admission logic was unit-tested.",
+    "Benchmark precedes the final JavaScript-only shebang fix.",
+    "Dependency snapshot contains four selected OSV advisories, not the full database.",
+    "Rule pair measurements are regression checks, not estimates of real-world vulnerability precision."
+  ],
+  "evidence_notes": [
+    "Node tests passed 6/6 in tool output; the disposable Node container expired before its log was exported.",
+    "Self-scan describes the final source snapshot before generated verification metadata was added."
+  ],
+  "review_artifact": {
+    "path": "/tmp/apollyon-release-review/apollyon-0.4.0.crate",
+    "sha256": "229d1ae3b30bdde31e57353e58c595c65ab693e0317a72e16cb10e98b01bc9db",
+    "published": false
+  },
+  "disposable_containers_removed": true
+}

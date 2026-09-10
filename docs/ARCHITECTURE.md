@@ -103,7 +103,7 @@ filtering, preserves sensitive-line redaction, and accounts for selection gaps.
 
 See [CONFIG.md](CONFIG.md), [RULES.md](RULES.md), and the additive findings-v1
 fields in [FINDINGS_SCHEMA.md](FINDINGS_SCHEMA.md). Phase 0 paragraphs above
-record the original extraction; the current registry contains twelve rules.
+record the original extraction; the current registry contains 22 rules.
 
 ## Phase 2 semantic layer
 
@@ -111,14 +111,15 @@ record the original extraction; the current registry contains twelve rules.
 source families (TypeScript/TSX have distinct variants), validates lexical
 candidates against call, assignment/configuration, or unsafe AST nodes, and
 collects same-file function/call boundaries. All supported languages have a
-grammar. Parse/ABI/time/node/inspection-limit failure uses lexical fallback and
-increments coverage. Input remains capped at 2 MiB; parser timeout is 2 seconds,
-AST nodes at 1,000,000, and cumulative inspected node text at 16 MiB.
+grammar. Recoverable syntax errors retain valid AST expressions and record
+error-node counts. ABI/time/node/capture-limit failure uses whole-file lexical
+fallback and increments coverage. Input remains capped at 2 MiB; parser timeout is 2 seconds,
+AST nodes at 1,000,000, and cumulative captured call text at 16 MiB.
 
 `taint/mod.rs` models intra-function sources, assignments, integer casts,
 shell quoting for command sinks, parameterized-query behavior through APO011,
 and explicit single-line allowlist-return guards. Sources include HTTP/CLI/env/
-stdin, file reads, and deserialization tokens. It upgrades modeled eval/exec,
+stdin. File reads and deserialization calls are not implicit input sources. It upgrades modeled eval/exec,
 OS command, unsafe deserialization, dynamic SQL, and variable-path sinks to
 `tainted` with at most ten ordered trace steps. Unknown operations retain taint.
 
@@ -130,7 +131,7 @@ confidence, trace, and coverage; lexical fallback never emits `tainted`.
 Pinned dependencies are listed in `Cargo.toml` and resolved by `Cargo.lock`. The
 core parser plus one maintained grammar per supported language is the minimum
 set needed for full advertised grammar coverage; no optional Wasm/runtime parser
-or serialization dependency is enabled directly. `tree-sitter-language` is
+was enabled directly at that phase. The 0.4.0 development version adds pinned serde_json for offline advisory input. `tree-sitter-language` is
 pinned to 0.1.5 because 0.1.8 raised its Rust requirement after this dependency
 set was selected. The verified minimum Rust version is 1.85; this is the first
 stable release with edition 2024 support needed by current locked transitive
@@ -151,3 +152,13 @@ diff on the disposable copy, rerun the trigger and tests, and optionally record
 bounded Z3 syntax and Atheris fuzz evidence. The original source is never
 mounted or changed. See [SANDBOX.md](SANDBOX.md) for the enforced controls and
 [CASE_SCHEMA.md](CASE_SCHEMA.md) for state semantics.
+
+## Audit upgrade architecture
+
+`workflow.rs` implements inert init/explain/output/watch support and the explicit
+mechanical TLS fix. `dependencies.rs` reads bounded lockfiles and an offline OSV
+snapshot. Scanner workers process bounded batches and merge in path order.
+AST scope indices avoid repeated scope searches, interpolation nodes preserve
+modeled flows, and parser progress callbacks enforce time bounds. Component
+script extraction preserves line/byte positions and excludes markup. The current
+bounds and limitations are documented in [AUDIT_UPGRADE.md](AUDIT_UPGRADE.md).

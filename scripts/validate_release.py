@@ -35,8 +35,8 @@ def main() -> int:
     )
     if package is None or package["version"] != version:
         errors.append("Cargo.lock package version differs from Cargo.toml")
-    if cargo["package"].get("publish") is not False:
-        errors.append("Cargo package must remain publish=false until crates.io is supported")
+    if cargo["package"].get("publish") is not True:
+        errors.append("Cargo package must be enabled for the documented crates.io release workflow")
 
     plugin = json.loads(
         (ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
@@ -50,7 +50,7 @@ def main() -> int:
 
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     for required in (
-        f"releases/tag/v{version}",
+        (f"releases/tag/v{version}" if "unreleased" not in readme.lower() else f"{version} development version"),
         "SHA256SUMS",
         "Sigstore",
         "public pre-alpha",

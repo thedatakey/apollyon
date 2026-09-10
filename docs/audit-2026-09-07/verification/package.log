@@ -1,0 +1,11 @@
+   Packaging apollyon v0.4.0 (/work/self-source)
+warning: ignoring test `audit_regressions` as `tests/audit_regressions.rs` is not included in the published package
+warning: ignoring test `completion` as `tests/completion.rs` is not included in the published package
+warning: ignoring test `golden_output` as `tests/golden_output.rs` is not included in the published package
+warning: ignoring test `phase1` as `tests/phase1.rs` is not included in the published package
+warning: ignoring test `phase2` as `tests/phase2.rs` is not included in the published package
+warning: ignoring test `phase3` as `tests/phase3.rs` is not included in the published package
+    Packaged 48 files, 324.0KiB (83.3KiB compressed)
+   Verifying apollyon v0.4.0 (/work/self-source)
+   Compiling apollyon v0.4.0 (/work/target/package/apollyon-0.4.0)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.13s

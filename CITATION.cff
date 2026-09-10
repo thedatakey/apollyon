@@ -8,8 +8,8 @@ authors:
 repository-code: "https://github.com/thedatakey/apollyon"
 url: "https://github.com/thedatakey/apollyon"
 license: MIT
-version: 0.3.0
-date-released: 2026-09-04
+version: 0.4.0
+date-released: 2026-09-08
 keywords:
   - source security
   - static analysis

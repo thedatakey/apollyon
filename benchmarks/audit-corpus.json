@@ -1,0 +1,266 @@
+[
+  {
+    "rule": "APO001",
+    "label": "positive",
+    "extension": "c",
+    "source": "void f(char *d, char *s) { strcpy(d,s); }\n"
+  },
+  {
+    "rule": "APO001",
+    "label": "negative",
+    "extension": "c",
+    "source": "void f(void) {}\n"
+  },
+  {
+    "rule": "APO002",
+    "label": "positive",
+    "extension": "c",
+    "source": "void f(char *d, char *s, int n) { memcpy(d,s,n); }\n"
+  },
+  {
+    "rule": "APO002",
+    "label": "negative",
+    "extension": "c",
+    "source": "void f(void) {}\n"
+  },
+  {
+    "rule": "APO003",
+    "label": "positive",
+    "extension": "rs",
+    "source": "fn main() { unsafe { pointer.read(); } }\n"
+  },
+  {
+    "rule": "APO003",
+    "label": "negative",
+    "extension": "rs",
+    "source": "fn main() {}\n"
+  },
+  {
+    "rule": "APO004",
+    "label": "positive",
+    "extension": "py",
+    "source": "eval(value)\n"
+  },
+  {
+    "rule": "APO004",
+    "label": "negative",
+    "extension": "py",
+    "source": "print(value)\n"
+  },
+  {
+    "rule": "APO005",
+    "label": "positive",
+    "extension": "py",
+    "source": "os.system(command)\n"
+  },
+  {
+    "rule": "APO005",
+    "label": "negative",
+    "extension": "py",
+    "source": "print(command)\n"
+  },
+  {
+    "rule": "APO006",
+    "label": "positive",
+    "extension": "py",
+    "source": "yaml.unsafe_load(payload)\n"
+  },
+  {
+    "rule": "APO006",
+    "label": "negative",
+    "extension": "py",
+    "source": "yaml.safe_load(payload)\n"
+  },
+  {
+    "rule": "APO007",
+    "label": "positive",
+    "extension": "py",
+    "source": "JWT_SECRET = 'real-looking-secret'\n"
+  },
+  {
+    "rule": "APO007",
+    "label": "negative",
+    "extension": "py",
+    "source": "password = request.form['password']\n"
+  },
+  {
+    "rule": "APO008",
+    "label": "positive",
+    "extension": "py",
+    "source": "hashlib.md5(password)\n"
+  },
+  {
+    "rule": "APO008",
+    "label": "negative",
+    "extension": "py",
+    "source": "hashlib.md5(data, usedforsecurity=False)\n"
+  },
+  {
+    "rule": "APO009",
+    "label": "positive",
+    "extension": "js",
+    "source": "const token = Math.random();\n"
+  },
+  {
+    "rule": "APO009",
+    "label": "negative",
+    "extension": "js",
+    "source": "const token = crypto.randomUUID();\n"
+  },
+  {
+    "rule": "APO010",
+    "label": "positive",
+    "extension": "py",
+    "source": "requests.get(url, verify=False)\n"
+  },
+  {
+    "rule": "APO010",
+    "label": "negative",
+    "extension": "py",
+    "source": "requests.get(url, verify=True)\n"
+  },
+  {
+    "rule": "APO011",
+    "label": "positive",
+    "extension": "py",
+    "source": "name = request.args['name']\nq = 'SELECT * FROM users WHERE name=' + name\ndb.execute(q)\n"
+  },
+  {
+    "rule": "APO011",
+    "label": "negative",
+    "extension": "py",
+    "source": "name = request.args['name']\ndb.execute('SELECT * FROM users WHERE name=?', (name,))\n"
+  },
+  {
+    "rule": "APO012",
+    "label": "positive",
+    "extension": "py",
+    "source": "name = request.args['path']\nopen(name)\n"
+  },
+  {
+    "rule": "APO012",
+    "label": "negative",
+    "extension": "py",
+    "source": "open(__file__)\n"
+  },
+  {
+    "rule": "APO013",
+    "label": "positive",
+    "extension": "js",
+    "source": "const NEXT_PUBLIC_SECRET = 'real-looking-secret';\n"
+  },
+  {
+    "rule": "APO013",
+    "label": "negative",
+    "extension": "js",
+    "source": "const NEXT_PUBLIC_TITLE = 'Public page title';\n"
+  },
+  {
+    "rule": "APO014",
+    "label": "positive",
+    "extension": "py",
+    "source": "app.run(debug=True)\n"
+  },
+  {
+    "rule": "APO014",
+    "label": "negative",
+    "extension": "py",
+    "source": "app.run(debug=False)\n"
+  },
+  {
+    "rule": "APO015",
+    "label": "positive",
+    "extension": "js",
+    "source": "element.innerHTML = req.body.html;\n"
+  },
+  {
+    "rule": "APO015",
+    "label": "negative",
+    "extension": "js",
+    "source": "element.textContent = req.body.html;\n"
+  },
+  {
+    "rule": "APO016",
+    "label": "positive",
+    "extension": "py",
+    "source": "url = request.args['url']\nrequests.get(url)\n"
+  },
+  {
+    "rule": "APO016",
+    "label": "negative",
+    "extension": "py",
+    "source": "requests.get('https://fixed.example')\n"
+  },
+  {
+    "rule": "APO017",
+    "label": "positive",
+    "extension": "py",
+    "source": "jwt.decode(token, verify=False)\n"
+  },
+  {
+    "rule": "APO017",
+    "label": "negative",
+    "extension": "py",
+    "source": "jwt.decode(token, key, algorithms=['HS256'])\n"
+  },
+  {
+    "rule": "APO018",
+    "label": "positive",
+    "extension": "js",
+    "source": "const config = {origin: '*', credentials: true};\n"
+  },
+  {
+    "rule": "APO018",
+    "label": "negative",
+    "extension": "js",
+    "source": "const config = {origin: 'https://fixed.example', credentials: true};\n"
+  },
+  {
+    "rule": "APO019",
+    "label": "positive",
+    "extension": "js",
+    "source": "res.cookie('session', token, {secure: false});\n"
+  },
+  {
+    "rule": "APO019",
+    "label": "negative",
+    "extension": "js",
+    "source": "res.cookie('session', token, {secure: true, httpOnly: true});\n"
+  },
+  {
+    "rule": "APO020",
+    "label": "positive",
+    "extension": "js",
+    "source": "const SERVICE_ROLE = 'real-looking-secret';\n"
+  },
+  {
+    "rule": "APO020",
+    "label": "negative",
+    "extension": "js",
+    "source": "const SERVICE_ROLE = process.env.SERVICE_ROLE;\n"
+  },
+  {
+    "rule": "APO021",
+    "label": "positive",
+    "extension": "js",
+    "source": "collection.find(req.body);\n"
+  },
+  {
+    "rule": "APO021",
+    "label": "negative",
+    "extension": "js",
+    "source": "collection.find({id: 'fixed'});\n"
+  },
+  {
+    "rule": "APO022",
+    "label": "positive",
+    "extension": "py",
+    "source": "PythonREPLTool()\n"
+  },
+  {
+    "rule": "APO022",
+    "label": "negative",
+    "extension": "py",
+    "source": "ConstrainedSearchTool()\n"
+  }
+]

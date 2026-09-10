@@ -36,8 +36,8 @@ def safe_location(case: dict, source_root: Path) -> tuple[PurePosixPath, Path]:
     if case.get("scope", {}).get("authorized") is not True:
         raise ValueError("case scope must record explicit authorization")
     discovery = case.get("evidence", {}).get("discovery", [])
-    if len(discovery) != 1 or discovery[0].get("rule_id") != "APO004" or discovery[0].get("confidence") != "tainted":
-        raise ValueError("python-eval/v1 requires one tainted APO004 discovery record")
+    if len(discovery) != 1 or discovery[0].get("rule_id") != "APO004" or discovery[0].get("confidence") not in {"tainted", "reachable"}:
+        raise ValueError("python-eval/v1 requires one tainted or reachable APO004 discovery record")
     locations = case.get("claim", {}).get("affected_locations", [])
     if len(locations) != 1:
         raise ValueError("python-eval/v1 requires exactly one affected location")

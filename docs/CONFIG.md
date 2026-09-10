@@ -1,6 +1,6 @@
 # Scan configuration and adoption controls
 
-Phase 1 remains lexical and uses no third-party runtime dependencies. All rules
+Scanning uses bounded lexical rules and tree-sitter analysis. All rules
 produce review candidates. No source or target code is executed by a static scan.
 `--diff` additionally invokes a bounded, read-only Git command.
 
@@ -76,8 +76,11 @@ The fingerprint is `SHA256(rule_id + NUL + root_relative_path + NUL +
 SHA256(original_line_utf8))`, with hex-encoded inner SHA-256. Line numbers and
 absolute roots are excluded. An unchanged line retains its fingerprint after
 unrelated lines are inserted. Editing its content, comment, or path changes
-its identity. Identical duplicate lines in the same file/rule share an identity;
-all matching occurrences are counted as baselined. Stale entries simply match
+its identity. The first occurrence retains that identity. Later identical findings use
+`SHA256(first_fingerprint + NUL + occurrence_ordinal)`, with ordinals starting at
+1. They are independently baselineable. Inserting an identical occurrence
+before another can shift its ordinal; unrelated insertions do not. Existing
+baselines that previously covered duplicates may expose newly distinct findings. Stale entries simply match
 nothing. Baselines contain hashes only, not source or credentials; hashes are
 not encryption and files should still be handled as project metadata.
 
@@ -117,16 +120,25 @@ Directory scans respect root and nested `.gitignore` files by default.
 `.gitignore`, while retaining explicit excludes and file safety checks.
 
 Supported: blank/comment lines, literal patterns, `*` and `?` within one path
-component, `!` negation, leading `/` anchoring, and trailing `/` directory rules.
+component, `**` across whole path components, character classes and ranges
+(including negated classes), `!` negation, leading `/` anchoring, and trailing `/` directory rules.
 Unanchored basename patterns match at any depth under their ignore file;
 patterns containing `/` are relative to that file. Last matching rule wins.
 An excluded parent directory is not traversed, so a child negation cannot
 re-include it without re-including the parent. Built-in and explicit exclusions
 always win.
 
-Not supported: `**`, character classes, backslash escapes, Git global excludes,
-`.git/info/exclude`, or index-aware tracked-file exceptions. Unsupported syntax,
-invalid UTF-8, unreadable files, and symlinks make the scan incomplete (exit 3),
-never silently clean. Each ignore file is limited to 64 KiB, patterns to 1,024
+Not supported: backslash escapes, Git global excludes,
+`.git/info/exclude`, or index-aware tracked-file exceptions. Unsupported positive
+patterns are skipped individually with bounded path/line notes; supported rules
+remain active. Unsupported negations can hide re-included source, so they remain
+coverage errors. Invalid paths, UTF-8, unreadable files, and symlinks also make
+the scan incomplete (exit 3). Notes never include the raw ignore pattern. Each ignore file is limited to 64 KiB, patterns to 1,024
 bytes, and the scan to 1,000 loaded rules. Ignored files/directories contribute
 to existing exclusion counters.
+
+## Audit upgrade options
+
+See [the configuration extension](AUDIT_UPGRADE.md#configuration-and-bounds) for
+resource settings, path overrides, automatic baselines, display filters, and
+additional formats. Path overrides run after global CLI rule/threshold options.
