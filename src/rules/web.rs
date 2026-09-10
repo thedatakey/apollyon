@@ -4,7 +4,7 @@ use super::{
     rule_info, RuleInfo,
 };
 use crate::lexer::{Language, LineView};
-pub(crate) fn match_rules(view: &LineView, _language: Language, out: &mut Vec<&'static RuleInfo>) {
+pub(crate) fn match_rules(view: &LineView, language: Language, out: &mut Vec<&'static RuleInfo>) {
     let compact = view.code.split_whitespace().collect::<String>();
     let visible = view.visible.as_str();
     let mut emit = |id| {
@@ -30,6 +30,10 @@ pub(crate) fn match_rules(view: &LineView, _language: Language, out: &mut Vec<&'
         || compact.contains("dangerouslySetInnerHTML")
         || compact.contains("v-html")
         || contains_any_call(&view.code, &["render_template_string", "document.write"])
+        || (language == Language::JavaScript
+            && contains_any_call(&view.code, &["res.send", "response.send"])
+            && view.code.contains('+')
+            && view.literals.iter().any(|s| s.contains('<')))
     {
         emit("APO015");
     }

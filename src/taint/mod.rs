@@ -13,6 +13,7 @@ const SOURCES: &[&str] = &[
     "request.get_json(",
     "request.body",
     "request.headers",
+    "request.getParameter(",
     "req.query",
     "req.body",
     "req.params",
@@ -40,6 +41,7 @@ const REMOTE_SOURCES: &[&str] = &[
     "request.get_json(",
     "request.body",
     "request.headers",
+    "request.getParameter(",
     "req.query",
     "req.body",
     "req.params",
@@ -71,6 +73,8 @@ pub(crate) fn sql_sink(call: &crate::ast::Call) -> bool {
     [
         "execute",
         "executemany",
+        "executeQuery",
+        "executeUpdate",
         "query",
         "rawQuery",
         "raw",
@@ -277,6 +281,9 @@ pub(crate) fn analyze(
                 call.line == line_no
                     && match rule {
                         "APO011" => sql_sink(call),
+                        "APO015" => {
+                            ["res.send", "response.send"].contains(&call.qualified_name.as_str())
+                        }
                         "APO012" => [
                             "open",
                             "fopen",

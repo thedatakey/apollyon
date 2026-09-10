@@ -59,7 +59,9 @@ that a project is secure.
 - **Offline dependency checks:** supported lockfiles matched against a small,
   declared advisory snapshot; this is not a comprehensive vulnerability database.
 
-The audit fixes passed **114 Rust, 6 Python, and 6 Node tests** locally.
+The original audit fixes passed **114 Rust, 6 Python, and 6 Node tests** locally.
+The [review follow-up](docs/review-2026-09-10/README.md) adds detection regressions
+and brings the Rust suite to **118 passing tests**.
 [Cross-platform CI](https://github.com/thedatakey/apollyon/actions/runs/34492038254)
 passed Linux, macOS, Windows, Rust 1.85 compatibility, and the composite action.
 The [completion record](docs/audit-2026-09-07/COMPLETION.md) separates measured
@@ -209,12 +211,12 @@ semantic coverage. Run `apollyon rules` for the executable rule registry.
 | `APO004` | high | Dynamic code execution | JavaScript, TypeScript, Python, PHP, Ruby |
 | `APO005` | medium | Operating-system command execution | C, C++, C#, Go, Java, Kotlin, JavaScript, TypeScript, PHP, Python, Ruby, Rust, Swift |
 | `APO006` | high | Unsafe deserialization boundary | C#, Java, Kotlin, PHP, Python, Ruby |
-| `APO007` | high | Embedded credential material | All supported languages |
-| `APO008` | medium | Weak cryptographic primitive | All supported languages |
+| `APO007` | high | Embedded credential material | Selected syntax; see [coverage limits](docs/RULES.md#language-coverage) |
+| `APO008` | medium | Weak cryptographic primitive | Selected syntax; see [coverage limits](docs/RULES.md#language-coverage) |
 | `APO009` | info | Non-cryptographic randomness | C, C++, Java, Kotlin, JavaScript, TypeScript, PHP, Python |
 | `APO010` | high | Disabled TLS verification | C, C++, Go, Java, Kotlin, JavaScript, TypeScript, PHP, Python |
-| `APO011` | medium | Dynamically assembled SQL | All supported languages |
-| `APO012` | medium | Modeled input in filesystem path | All supported languages |
+| `APO011` | medium | Dynamically assembled SQL | Selected syntax; see [coverage limits](docs/RULES.md#language-coverage) |
+| `APO012` | medium | Modeled input in filesystem path | Selected syntax; see [coverage limits](docs/RULES.md#language-coverage) |
 
 For a static workspace snapshot, Apollyon skips symbolic links, ignores common
 dependency/build directories, supports explicit file and directory exclusions,

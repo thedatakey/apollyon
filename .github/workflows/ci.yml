@@ -103,3 +103,21 @@ jobs:
           path: tests/fixtures/manual-project
           fail-on: never
           upload-sarif: "false"
+
+  advisory:
+    name: RustSec advisory audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install tested Rust
+        run: rustup toolchain install 1.97.1 --profile minimal --no-self-update
+      - name: Install pinned auditor
+        run: cargo +1.97.1 install cargo-audit --version 0.22.2 --locked
+      - name: Check lockfile against current RustSec advisories
+        run: cargo +1.97.1 audit --file Cargo.lock

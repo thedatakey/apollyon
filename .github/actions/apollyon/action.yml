@@ -27,16 +27,41 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Identify action source
+      id: source
+      shell: bash
+      env:
+        ACTION_SOURCE: ${{ github.action_path }}
+      run: |
+        cd "$ACTION_SOURCE/../../.."
+        digest=$({
+          find src data -type f -print0 | sort -z | xargs -0 sha256sum
+          sha256sum Cargo.toml Cargo.lock docs/CLI.txt .github/actions/apollyon/action.yml
+          if [[ -f build.rs ]]; then sha256sum build.rs; fi
+        } | sha256sum | cut -d ' ' -f 1)
+        echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+    - name: Restore exact source build
+      id: binary-cache
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ${{ runner.temp }}/apollyon-action
+        key: apollyon-source-v1-${{ runner.os }}-${{ runner.arch }}-rust1.85.0-${{ steps.source.outputs.digest }}
+
     - name: Install tested Rust toolchain
+      if: steps.binary-cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
         rustup toolchain install 1.85.0 --profile minimal --no-self-update
 
     - name: Build action revision
+      if: steps.binary-cache.outputs.cache-hit != 'true'
       shell: bash
+      env:
+        ACTION_SOURCE: ${{ github.action_path }}
       run: |
         cargo +1.85.0 install --locked \
-          --path "${{ github.action_path }}/../../.." \
+          --path "${ACTION_SOURCE}/../../.." \
           --root "$RUNNER_TEMP/apollyon-action"
 
     - name: Run Apollyon

@@ -154,7 +154,7 @@ fn scan_file_settings(
         );
         adoption::match_rules(&view, language, &mut candidates);
         crate::rules::web::match_rules(&view, language, &mut candidates);
-        for (&(line, id), _) in traces.range((index + 1, "")..=(index + 1, "ZZZ")) {
+        for (&(line, id), _) in traces.range((index + 1, "")..(index + 2, "")) {
             if line == index + 1 && !candidates.iter().any(|r| r.id == id) {
                 candidates.push(crate::rules::rule_info(id));
             }

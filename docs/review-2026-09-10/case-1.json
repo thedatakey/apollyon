@@ -1,0 +1,45 @@
+{
+  "schema": "apollyon.case/v1",
+  "case_id": "APO-2026-REVIEW-001",
+  "status": "verified",
+  "transitions": [
+    "candidate",
+    "validated",
+    "remediated",
+    "verified"
+  ],
+  "scope": {
+    "repository": "thedatakey/apollyon",
+    "revision": "30b58cb6d007c3aee07550bd171d7e34069e30f8 plus reviewed working-tree patch",
+    "authorized": true
+  },
+  "claim": {
+    "summary": "AST filtering drops credential declarations in Go, Rust, Swift and Kotlin"
+  },
+  "evidence": {
+    "discovery": [
+      "User-supplied review checked against source"
+    ],
+    "reproducer": "tests/review_followup.rs",
+    "sandbox": "Offline disposable Linux container; no host mounts/secrets; read-only root; uid 65532; 4 CPUs; 4 GiB RAM; 256 processes; 3 GiB work + 256 MiB tmp; 30 minute lifetime; tests bounded to 300 seconds",
+    "assumptions": [
+      "Source fixtures are parsed only, never executed"
+    ],
+    "original_result": "Original three-test harness: 0 passed, 3 failed; all ten affected credential declaration forms missed"
+  },
+  "remediation": {
+    "patch": "Current review follow-up diff",
+    "regression_tests": [
+      "credential_declarations_across_languages"
+    ]
+  },
+  "verification": {
+    "method": "Same original cases plus negative regressions and full Rust suite",
+    "command": "cargo test --offline --locked --all-targets --all-features",
+    "result": "118 passed, 0 failed"
+  },
+  "limitations": [
+    "Candidates are heuristic, not vulnerability verdicts",
+    "Coverage is bounded to tested syntax and modeled source/sink names"
+  ]
+}
